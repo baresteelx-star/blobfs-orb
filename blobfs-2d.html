@@ -6,29 +6,20 @@
 <title>BlobFS 2D</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; overflow: hidden; }
-  #stage { position: absolute; inset: 0; }
+  html, body { width: 100%; height: 100%; background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; overflow: hidden; }
   canvas { display: block; width: 100%; height: 100%; cursor: grab; }
   canvas:active { cursor: grabbing; }
-  #panel { position: absolute; top: 12px; right: 12px; width: 300px; background: rgba(22,27,34,0.95); border: 1px solid #30363d; border-radius: 8px; padding: 14px; font-size: 13px; max-height: calc(100vh - 24px); overflow-y: auto; }
+  #panel { position: absolute; top: 12px; right: 12px; width: 280px; background: rgba(22,27,34,0.95); border: 1px solid #30363d; border-radius: 8px; padding: 14px; font-size: 13px; max-height: calc(100vh - 24px); overflow-y: auto; z-index: 2; }
   #panel h2 { font-size: 15px; margin-bottom: 10px; color: #58a6ff; }
   .row { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
   button { background: #21262d; border: 1px solid #30363d; color: #e6edf3; border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 12px; }
-  button:hover { background: #30363d; }
   button.primary { background: #1f6feb; border-color: #1f6feb; }
-  button.primary:hover { background: #388bfd; }
-  button.danger { background: #da3633; border-color: #da3633; }
-  button.danger:hover { background: #f85149; }
   .blob-row { padding: 6px 8px; border-radius: 6px; margin-bottom: 4px; cursor: pointer; border: 1px solid transparent; }
-  .blob-row:hover { background: #21262d; }
-  .blob-row.selected { border-color: #58a6ff; background: #1c2128; }
-  .blob-row .name { font-weight: 600; }
-  .blob-row .meta { color: #8b949e; font-size: 11px; }
+  .blob-row.selected { border-color: #58a6ff; }
+  .meta { color: #8b949e; font-size: 11px; }
   .pending { background: rgba(210,153,34,0.15); border: 1px solid #d29922; border-radius: 6px; padding: 8px; margin-bottom: 8px; }
-  .pending .reason { color: #d29922; font-size: 11px; margin-bottom: 6px; }
-  input[type=text] { background: #0d1117; border: 1px solid #30363d; color: #e6edf3; border-radius: 4px; padding: 4px 6px; font-size: 12px; width: 100%; margin-bottom: 6px; }
   .hint { color: #8b949e; font-size: 11px; margin-top: 8px; line-height: 1.4; }
-  #status { position: absolute; bottom: 12px; left: 12px; background: rgba(22,27,34,0.9); border: 1px solid #30363d; border-radius: 6px; padding: 6px 10px; font-size: 12px; color: #8b949e; }
+  #status { position: absolute; bottom: 12px; left: 12px; background: rgba(22,27,34,0.9); border: 1px solid #30363d; border-radius: 6px; padding: 6px 10px; font-size: 12px; color: #8b949e; z-index: 2; }
 </style>
 </head>
 <body>
@@ -42,358 +33,295 @@
   </div>
   <div id="pendingList"></div>
   <div id="blobList"></div>
-  <div id="detail"></div>
-  <div class="hint">Drag an orb onto another and release to merge. Amber glow means a suggested merge — accept or refuse from the panel. Pull apart before release to cancel. Same rules as the 3D view: kind gate, shared tags, human commit.</div>
+  <div class="hint">Drag one circle onto another and release to merge. Amber means a suggestion. Same kind merges on release. Different kinds need a shared tag and Accept.</div>
 </div>
-<div id="status">ready</div>
+<div id="status">loading</div>
 <script>
-// ---------- orb format (JS port of orb.py) ----------
-const BODY = 1024 * 1024; // 1 MB constant mass
+(function () {
+  var BODY = 1024 * 1024;
+  var nextId = 1;
+  var blobs = {};
+  var proposals = {};
+  var selected = null;
+  var dragging = null;
+  var dragPos = null;
 
-class OrbError extends Error {
-  constructor(m) { super(m); this.name = 'OrbError'; }
-}
-
-class State {
-  constructor() {
-    this.blobs = {};   // id -> blob
-    this.proposals = {}; // pid -> proposal
-    this.events = [];
-    this.positions = {}; // id -> {x,y}
-    this._next = 1;
-  }
-  newId() { return 'b' + (this._next++); }
-  addBlob(kind, name, mass, tags) {
-    const id = this.newId();
-    this.blobs[id] = { id, kind, name, mass, tags: tags.slice(), children: [], parent: null, alive: true, rings: [{ event: 'born', mass }] };
-    this.events.push({ type: 'add', id, kind, name, mass });
+  function addBlob(kind, name, mass, tags) {
+    var id = 'b' + (nextId++);
+    blobs[id] = { id: id, kind: kind, name: name, mass: mass, tags: tags.slice(), children: [], parent: null, alive: true, x: 0, y: 0 };
     return id;
   }
-  mass(id) { return this.blobs[id] ? this.blobs[id].mass : 0; }
-  pending() {
-    const p = {};
-    for (const [pid, pr] of Object.entries(this.proposals)) if (pr.status === 'pending') p[pid] = pr;
-    return p;
-  }
-}
+  function addFile(name, bytes, tags) { return addBlob('file', name, BODY + bytes, tags); }
+  function addDir(name, tags) { return addBlob('dir', name, BODY, tags); }
 
-class Orb {
-  constructor() { this.state = new State(); }
-  addBytes(name, data, tags) {
-    const id = this.state.addBlob('file', name, BODY + data.byteLength, tags || []);
-    this.state.blobs[id].payload = data; // in-memory only for the demo
-    return id;
+  var covers = addDir('Covers', ['music']);
+  var sessions = addDir('Sessions', ['music', '2024']);
+  var masters = addDir('Masters', ['music']);
+  var photo1 = addFile('photo1.jpg', 2700000, ['vacation', '2024']);
+  var photo2 = addFile('photo2.jpg', 2800000, ['vacation', '2024']);
+  var song1 = addFile('song1.wav', 800000, ['berlin-set', 'demo']);
+  var notes = addFile('notes.txt', 12000, ['work']);
+  var order = [covers, sessions, masters, photo1, photo2, song1, notes];
+
+  function layout() {
+    var w = window.innerWidth;
+    var h = window.innerHeight;
+    var pad = 80;
+    var cols = 4;
+    var i, id, col, row;
+    for (i = 0; i < order.length; i++) {
+      id = order[i];
+      if (!blobs[id] || !blobs[id].alive) continue;
+      col = i % cols;
+      row = Math.floor(i / cols);
+      blobs[id].x = pad + col * ((w - 320) / cols);
+      blobs[id].y = pad + 40 + row * 180;
+      if (blobs[id].x < 40) blobs[id].x = 40;
+      if (blobs[id].y < 40) blobs[id].y = 40;
+    }
   }
-  addDir(name, tags) { return this.state.addBlob('dir', name, BODY, tags || []); }
-  propose(a, b, source) {
-    const sa = this.state.blobs[a], sb = this.state.blobs[b];
-    if (!sa || !sb || !sa.alive || !sb.alive) return null;
-    if (sa.parent || sb.parent) return null; // already inside something
-    const shared = sa.tags.filter(t => sb.tags.includes(t));
-    const sameKind = sa.kind === sb.kind;
-    if (!sameKind && shared.length === 0) return null; // kind gate
-    if (sa.kind === 'file' && sb.kind === 'file' && shared.length === 0) return null;
-    const pid = 'p' + this.state.events.length;
-    const pr = { pid, a, b, source, status: 'pending', shared_tags: shared, at: Date.now() };
-    this.state.proposals[pid] = pr;
-    this.state.events.push({ type: 'propose', pid, a, b, source, shared });
-    return pid;
+
+  function radius(mass) { return Math.max(22, Math.cbrt(mass / BODY) * 24); }
+
+  var canvas = document.getElementById('stage');
+  var ctx = canvas.getContext('2d');
+  var statusEl = document.getElementById('status');
+
+  function setStatus(t) { statusEl.textContent = t; }
+
+  function pendingFor(id) {
+    var pid, pr;
+    for (pid in proposals) {
+      pr = proposals[pid];
+      if (pr.status === 'pending' && (pr.a === id || pr.b === id)) return true;
+    }
+    return false;
   }
-  commit(pid, confirmedBy) {
-    const pr = this.state.proposals[pid];
-    if (!pr || pr.status !== 'pending') throw new OrbError('not pending: ' + pid);
-    if (confirmedBy === 'physics') throw new OrbError('physics cannot commit'); // gate
-    const sa = this.state.blobs[pr.a], sb = this.state.blobs[pr.b];
-    if (!sa.alive || !sb.alive) { pr.status = 'stale'; return null; }
-    // merge: heavier folder adopts lighter; two files -> new dir; file+dir -> dir adopts file
-    let parent, child;
+
+  function draw() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    var id, b, r, count = 0;
+    for (id in blobs) {
+      b = blobs[id];
+      if (!b.alive) continue;
+      count++;
+      r = radius(b.mass);
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
+      if (id === selected) {
+        ctx.fillStyle = '#1c2128';
+        ctx.fill();
+        ctx.strokeStyle = '#58a6ff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      } else if (pendingFor(id)) {
+        ctx.fillStyle = 'rgba(210,153,34,0.25)';
+        ctx.fill();
+        ctx.strokeStyle = '#d29922';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = b.kind === 'dir' ? '#21262d' : '#161b22';
+        ctx.fill();
+        ctx.strokeStyle = '#8b949e';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#e6edf3';
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(b.name, b.x, b.y + 4);
+    }
+    if (dragging && dragPos) {
+      b = blobs[dragging];
+      r = radius(b.mass);
+      ctx.beginPath();
+      ctx.arc(dragPos.x, dragPos.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(88,166,255,0.35)';
+      ctx.fill();
+      ctx.strokeStyle = '#58a6ff';
+      ctx.stroke();
+    }
+    if (count === 0) {
+      ctx.fillStyle = '#8b949e';
+      ctx.font = '16px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('No orbs loaded', 24, 40);
+    }
+  }
+
+  function sharedTags(a, b) {
+    var out = [], i;
+    for (i = 0; i < a.tags.length; i++) if (b.tags.indexOf(a.tags[i]) >= 0) out.push(a.tags[i]);
+    return out;
+  }
+
+  function propose(a, b) {
+    var sa = blobs[a], sb = blobs[b], shared, pid;
+    if (!sa || !sb || !sa.alive || !sb.alive) return;
+    if (sa.parent || sb.parent) return;
+    shared = sharedTags(sa, sb);
+    if (sa.kind !== sb.kind && shared.length === 0) return;
+    pid = 'p' + nextId++;
+    proposals[pid] = { pid: pid, a: a, b: b, status: 'pending', shared: shared };
+  }
+
+  function commit(pid) {
+    var pr = proposals[pid];
+    var sa, sb, parent, child, other;
+    if (!pr || pr.status !== 'pending') return;
+    sa = blobs[pr.a]; sb = blobs[pr.b];
+    if (!sa.alive || !sb.alive) { pr.status = 'stale'; return; }
     if (sa.kind === 'dir' && sb.kind === 'dir') {
       parent = sa.mass >= sb.mass ? sa : sb;
       child = parent === sa ? sb : sa;
     } else if (sa.kind === 'file' && sb.kind === 'file') {
-      parent = this.state.blobs[this.state.addBlob('dir', sa.name + ' \u222a ' + sb.name, BODY, [...new Set([...sa.tags, ...sb.tags])]];
+      parent = blobs[addDir(sa.name + ' + ' + sb.name, sa.tags.concat(sb.tags))];
+      parent.x = sa.x; parent.y = sa.y;
+      order.push(parent.id);
       child = null;
-      parent.rings.push({ event: 'merge', mass: parent.mass });
+      sa.alive = false; sb.alive = false;
     } else {
       parent = sa.kind === 'dir' ? sa : sb;
       child = parent === sa ? sb : sa;
     }
     if (child) {
-      // name collision disambiguator
-      let nm = child.name;
-      const taken = new Set(parent.children.map(c => this.state.blobs[c].name));
-      let i = 2; while (taken.has(nm)) { nm = child.name.replace(/(\.\w+)?$/, ' (' + i + ')$1'); i++; }
-      child.name = nm;
       child.parent = parent.id;
       parent.children.push(child.id);
       parent.mass += child.mass;
-      parent.rings.push({ event: 'merge', mass: parent.mass });
+      child.alive = false;
     }
-    sa.alive = false; sb.alive = false; // tombstone donors (for two-file case, parent is new)
-    if (sa.kind === 'file' && sb.kind === 'file') { sa.alive = false; sb.alive = false; }
-    else { const other = parent === sa ? sb : sa; other.alive = false; }
     pr.status = 'committed';
-    pr.confirmed_by = confirmedBy;
-    this.state.events.push({ type: 'commit', pid, parent: parent.id, confirmed_by: confirmedBy });
-    // move position to parent
-    if (this.state.positions[parent.id]) { /* keep */ }
-    else if (this.state.positions[pr.a]) this.state.positions[parent.id] = { ...this.state.positions[pr.a] };
-    return parent.id;
+    setStatus('merged');
   }
-  refuse(pid) {
-    const pr = this.state.proposals[pid];
-    if (!pr || pr.status !== 'pending') throw new OrbError('not pending');
-    pr.status = 'refused';
-    this.state.events.push({ type: 'refuse', pid });
+
+  function renderPanel() {
+    var pl = document.getElementById('pendingList');
+    var bl = document.getElementById('blobList');
+    var pid, pr, id, b, html;
+    pl.innerHTML = '';
+    for (pid in proposals) {
+      pr = proposals[pid];
+      if (pr.status !== 'pending') continue;
+      html = document.createElement('div');
+      html.className = 'pending';
+      html.innerHTML = 'suggested: ' + blobs[pr.a].name + ' + ' + blobs[pr.b].name +
+        '<div class="row"><button data-accept="' + pid + '">Accept</button><button data-refuse="' + pid + '">Refuse</button></div>';
+      pl.appendChild(html);
+    }
+    bl.innerHTML = '';
+    for (id in blobs) {
+      b = blobs[id];
+      if (!b.alive) continue;
+      html = document.createElement('div');
+      html.className = 'blob-row' + (id === selected ? ' selected' : '');
+      html.innerHTML = '<div>' + b.name + '</div><div class="meta">' + b.kind + ' · ' + (b.mass / 1000000).toFixed(1) + ' MB</div>';
+      html.setAttribute('data-id', id);
+      bl.appendChild(html);
+    }
   }
-  split(parentId, childId) {
-    const p = this.state.blobs[parentId], c = this.state.blobs[childId];
-    if (!p || !c || c.parent !== parentId) throw new OrbError('not a child');
-    p.mass -= c.mass;
-    p.rings.push({ event: 'split', mass: p.mass });
-    c.parent = null;
-    p.children = p.children.filter(x => x !== childId);
-    c.rings.push({ event: 'split', mass: c.mass });
-    this.state.events.push({ type: 'split', parent: parentId, child: childId });
-  }
-  rename(id, name) { this.state.blobs[id].name = name; this.state.events.push({ type: 'rename', id, name }); }
-  tag(id, t) {
-    const b = this.state.blobs[id];
-    if (!b.tags.includes(t)) { b.tags.push(t); this.state.events.push({ type: 'tag', id, tag: t }); }
-  }
-  untag(id, t) {
-    const b = this.state.blobs[id];
-    b.tags = b.tags.filter(x => x !== t);
-    this.state.events.push({ type: 'untag', id, tag: t });
-  }
-}
 
-// ---------- sample disk ----------
-const orb = new Orb();
-const covers = orb.addDir('Covers', ['music']);
-const sessions = orb.addDir('Sessions', ['music', '2024']);
-const masters = orb.addDir('Masters', ['music']);
-const photo1 = orb.addBytes('photo1.jpg', new Uint8Array(2_700_000), ['vacation', '2024']);
-const photo2 = orb.addBytes('photo2.jpg', new Uint8Array(2_800_000), ['vacation', '2024']);
-const song1 = orb.addBytes('song1.wav', new Uint8Array(800_000), ['berlin-set', 'demo']);
-const notes = orb.addBytes('notes.txt', new Uint8Array(12_000), ['work']);
-
-// layout: place blobs in 2D
-const W = () => window.innerWidth, H = () => window.innerHeight;
-function layout() {
-  const w = W(), h = H();
-  const pos = {
-    [covers]: { x: w * 0.25, y: h * 0.35 },
-    [sessions]: { x: w * 0.55, y: h * 0.30 },
-    [masters]: { x: w * 0.75, y: h * 0.55 },
-    [photo1]: { x: w * 0.20, y: h * 0.65 },
-    [photo2]: { x: w * 0.35, y: h * 0.72 },
-    [song1]: { x: w * 0.60, y: h * 0.68 },
-    [notes]: { x: w * 0.85, y: h * 0.30 },
-  };
-  for (const [id, p] of Object.entries(pos)) orb.state.positions[id] = p;
-}
-layout();
-
-// ---------- rendering ----------
-const canvas = document.getElementById('stage);
-const ctx = canvas.getContext('2d);
-let selected = null;
-let dragging = null; // { id, ox, oy }
-let dragPos = null;
-let hover = null;
-
-function radius(mass) { return Math.max(18, Math.cbrt(mass / BODY) * 22); }
-
-function draw() {
-  canvas.width = W(); canvas.height = H();
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  // grid hint
-  ctx.strokeStyle = '#161b22'; ctx.lineWidth = 1;
-  for (let x = 0; x < canvas.width; x += 60) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); }
-  for (let y = 0; y < canvas.height; y += 60) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
-
-  const pending = orb.state.pending();
-  const pendingPairs = new Set();
-  for (const pr of Object.values(pending)) { pendingPairs.add(pr.a + '|' + pr.b); pendingPairs.add(pr.b + '|' + pr.a); }
-
-  // draw blobs
-  for (const [id, b] of Object.entries(orb.state.blobs)) {
-    if (!b.alive) continue;
-    const p = orb.state.positions[id];
-    if (!p) continue;
-    const r = radius(b.mass);
-    const isPending = pendingPairs.has(id + '|' + (Object.keys(orb.state.blobs).find(x => x !== id) || ''));
-    // check any pending involving this id
-    let glow = false;
-    for (const pr of Object.values(pending)) if (pr.a === id || pr.b === id) glow = true;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-    if (id === selected) { ctx.fillStyle = '#1c2128'; ctx.fill(); ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 2; ctx.stroke(); }
-    else if (glow) { ctx.fillStyle = 'rgba(210,153,34,0.25)'; ctx.fill(); ctx.strokeStyle = '#d29922'; ctx.lineWidth = 2; ctx.stroke(); }
-    else { ctx.fillStyle = b.kind === 'dir' ? '#21262d' : '#161b22'; ctx.fill(); ctx.strokeStyle = '#30363d'; ctx.lineWidth = 1.5; ctx.stroke(); }
-    // label
-    ctx.fillStyle = '#e6edf3'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(b.name, p.x, p.y + 4);
-    ctx.fillStyle = '#8b949e'; ctx.font = '10px sans-serif';
-    ctx.fillText((b.mass / 1e6).toFixed(1) + ' MB', p.x, p.y + r + 14);
-  }
-  // drag ghost
-  if (dragging && dragPos) {
-    const b = orb.state.blobs[dragging.id];
-    const r = radius(b.mass);
-    ctx.beginPath(); ctx.arc(dragPos.x, dragPos.y, r, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(88,166,255,0.3)'; ctx.fill();
-    ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 2; ctx.stroke();
-  }
-}
-
-// ---------- interaction ----------
-canvas.addEventListener('pointerdown', e => {
-  const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-  let hit = null;
-  for (const [id, b] of Object.entries(orb.state.blobs)) {
-    if (!b.alive) continue;
-    const p = orb.state.positions[id]; if (!p) continue;
-    const r = radius(b.mass);
-    if ((mx - p.x) ** 2 + (my - p.y) ** 2 <= r * r) { hit = id; break; }
-  }
-  if (hit) {
+  canvas.addEventListener('pointerdown', function (e) {
+    var rect = canvas.getBoundingClientRect();
+    var mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    var id, b, r, hit = null;
+    for (id in blobs) {
+      b = blobs[id];
+      if (!b.alive) continue;
+      r = radius(b.mass);
+      if ((mx - b.x) * (mx - b.x) + (my - b.y) * (my - b.y) <= r * r) hit = id;
+    }
     selected = hit;
-    dragging = { id: hit, ox: mx - orb.state.positions[hit].x, oy: my - orb.state.positions[hit].y };
-    canvas.setPointerCapture(e.pointerId);
-  } else {
-    selected = null;
-  }
-  renderPanel();
-  draw();
-});
-canvas.addEventListener('pointermove', e => {
-  const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-  if (dragging) {
-    dragPos = { x: mx - dragging.ox, y: my - dragging.oy };
-    // contact check: propose on contact
-    const b = orb.state.blobs[dragging.id];
-    const r = radius(b.mass);
-    for (const [id, ob] of Object.entries(orb.state.blobs)) {
-      if (id === dragging.id || !ob.alive) continue;
-      const p = orb.state.positions[id]; if (!p) continue;
-      const ro = radius(ob.mass);
-      if ((dragPos.x - p.x) ** 2 + (dragPos.y - p.y) ** 2 <= (r + ro) ** 2) {
-        orb.propose(dragging.id, id, 'physics');
+    if (hit) {
+      dragging = hit;
+      dragPos = { x: mx, y: my };
+    }
+    renderPanel(); draw();
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    var rect, mx, my, id, b, r, ro;
+    if (!dragging) return;
+    rect = canvas.getBoundingClientRect();
+    mx = e.clientX - rect.left; my = e.clientY - rect.top;
+    dragPos = { x: mx, y: my };
+    b = blobs[dragging];
+    r = radius(b.mass);
+    for (id in blobs) {
+      if (id === dragging || !blobs[id].alive) continue;
+      ro = radius(blobs[id].mass);
+      if ((mx - blobs[id].x) * (mx - blobs[id].x) + (my - blobs[id].y) * (my - blobs[id].y) <= (r + ro) * (r + ro)) {
+        propose(dragging, id);
       }
     }
-    renderPanel();
-  }
+    renderPanel(); draw();
+  });
+  canvas.addEventListener('pointerup', function () {
+    var pid, pr, same;
+    if (!dragging) return;
+    for (pid in proposals) {
+      pr = proposals[pid];
+      if (pr.status !== 'pending') continue;
+      if (pr.a !== dragging && pr.b !== dragging) continue;
+      same = blobs[pr.a].kind === blobs[pr.b].kind;
+      if (same) commit(pid);
+    }
+    dragging = null; dragPos = null;
+    renderPanel(); draw();
+  });
+
+  document.getElementById('pendingList').addEventListener('click', function (e) {
+    var acc = e.target.getAttribute('data-accept');
+    var ref = e.target.getAttribute('data-refuse');
+    if (acc) { commit(acc); setStatus('accepted'); }
+    if (ref && proposals[ref]) { proposals[ref].status = 'refused'; setStatus('refused'); }
+    renderPanel(); draw();
+  });
+  document.getElementById('blobList').addEventListener('click', function (e) {
+    var row = e.target.closest('[data-id]');
+    if (!row) return;
+    selected = row.getAttribute('data-id');
+    renderPanel(); draw();
+  });
+  document.getElementById('btnNew').addEventListener('click', function () {
+    var name = prompt('blob name');
+    var id;
+    if (!name) return;
+    id = addFile(name, 100000, []);
+    blobs[id].x = 120; blobs[id].y = 120;
+    order.push(id);
+    renderPanel(); draw();
+  });
+  document.getElementById('btnSplit').addEventListener('click', function () {
+    var b, childId, child;
+    if (!selected) { setStatus('select a folder first'); return; }
+    b = blobs[selected];
+    if (!b || b.children.length === 0) { setStatus('nothing to split'); return; }
+    childId = b.children.pop();
+    child = blobs[childId];
+    b.mass -= child.mass;
+    child.parent = null;
+    child.alive = true;
+    child.x = b.x + 50; child.y = b.y + 50;
+    setStatus('split ' + child.name);
+    renderPanel(); draw();
+  });
+  document.getElementById('btnSave').addEventListener('click', function () {
+    var a = document.createElement('a');
+    var blob = new Blob([JSON.stringify({ blobs: blobs, proposals: proposals }, null, 2)], { type: 'application/json' });
+    a.href = URL.createObjectURL(blob);
+    a.download = 'demo.orb.json';
+    a.click();
+    setStatus('saved demo.orb.json');
+  });
+
+  window.addEventListener('resize', function () { layout(); draw(); });
+  layout();
+  renderPanel();
   draw();
-});
-canvas.addEventListener('pointerup', e => {
-  if (!dragging) return;
-  const id = dragging.id;
-  dragging = null; dragPos = null;
-  // release: commit any pending involving this id
-  const pending = orb.state.pending();
-  let committed = false;
-  for (const [pid, pr] of Object.entries(pending)) {
-    if (pr.a === id || pr.b === id) {
-      try { orb.commit(pid, 'kenneth'); committed = true; } catch (err) { /* physics can't commit cross-kind; stays pending */ }
-    }
-  }
-  setStatus(committed ? 'merged' : 'released (no commit)');
-  renderPanel(); draw();
-});
-
-// ---------- panel ----------
-function renderPanel() {
-  const pending = orb.state.pending();
-  const pl = document.getElementById('pendingList'); pl.innerHTML = '';
-  for (const [pid, pr] of Object.entries(pending)) {
-    const sa = orb.state.blobs[pr.a], sb = orb.state.blobs[pr.b];
-    const div = document.createElement('div'); div.className = 'pending';
-    div.innerHTML = `<div class="reason">suggested: ${sa.name} + ${sb.name}` +
-      (pr.shared_tags.length ? ` (shared: ${pr.shared_tags.join(', ')})` : ' (same kind)') + `</div>` +
-      `<button class="primary" data-accept="${pid}">Accept</button> <button data-refuse="${pid}">Refuse</button>`;
-    pl.appendChild(div);
-  }
-  const bl = document.getElementById('blobList'); bl.innerHTML = '';
-  for (const [id, b] of Object.entries(orb.state.blobs)) {
-    if (!b.alive) continue;
-    const div = document.createElement('div'); div.className = 'blob-row' + (id === selected ? ' selected' : '');
-    div.innerHTML = `<div class="name">${b.name}</div><div class="meta">${b.kind} \u00b7 ${(b.mass/1e6).toFixed(1)} MB \u00b7 tags: ${b.tags.join(' ') || '-'}</div>`;
-    div.addEventListener('click', () => { selected = id; renderPanel(); draw(); });
-    bl.appendChild(div);
-  }
-  const det = document.getElementById('detail'); det.innerHTML = '';
-  if (selected && orb.state.blobs[selected]) {
-    const b = orb.state.blobs[selected];
-    det.innerHTML = `<input type="text" value="${b.name}" id="renameInput">` +
-      `<div class="row"><button id="btnRename">Rename</button>` +
-      (b.kind === 'dir' ? `<button id="btnAddFile">Add file</button>` : '') +
-      `</div><div class="row">` +
-      b.tags.map(t => `<button data-untag="${t}">${t} \u00d7</button>`).join('') +
-      `</div><input type="text" placeholder="add tag" id="tagInput">`;
-    document.getElementById('renameInput').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('btnRename').click(); });
-    document.getElementById('btnRename').addEventListener('click', () => {
-      orb.rename(selected, document.getElementById('renameInput').value); renderPanel(); draw();
-    });
-    document.getElementById('tagInput').addEventListener('keydown', e => {
-      if (e.key === 'Enter') { orb.tag(selected, e.target.value); e.target.value = ''; renderPanel(); draw(); }
-    });
-    det.querySelectorAll('[data-untag]').forEach(btn => btn.addEventListener('click', () => {
-      orb.untag(selected, btn.dataset.untag); renderPanel(); draw();
-    }));
-    if (document.getElementById('btnAddFile')) {
-      document.getElementById('btnAddFile').addEventListener('click', () => {
-        const name = prompt('file name'); if (!name) return;
-        const f = orb.addBytes(name, new Uint8Array(Math.floor(Math.random() * 500_000) + 10_000), b.tags.slice());
-        orb.state.positions[f] = { x: orb.state.positions[selected].x + 40, y: orb.state.positions[selected].y + 40 };
-        renderPanel(); draw();
-      });
-    }
-  }
-}
-
-document.getElementById('pendingList').addEventListener('click', e => {
-  const acc = e.target.closest('[data-accept]'); const ref = e.target.closest('[data-refuse]');
-  if (acc) { try { orb.commit(acc.dataset.accept, 'kenneth'); setStatus('accepted'); } catch (err) { setStatus('error: ' + err.message); } renderPanel(); draw(); }
-  if (ref) { orb.refuse(ref.dataset.refuse); setStatus('refused (recorded)'); renderPanel(); draw(); }
-});
-document.getElementById('btnNew').addEventListener('click', () => {
-  const name = prompt('blob name'); if (!name) return;
-  const kind = confirm('directory? (cancel = file)') ? 'dir' : 'file';
-  const id = kind === 'dir' ? orb.addDir(name) : orb.addBytes(name, new Uint8Array(Math.floor(Math.random() * 1_000_000) + 10_000));
-  orb.state.positions[id] = { x: Math.random() * W() * 0.6 + W() * 0.2, y: Math.random() * H() * 0.6 + H() * 0.2 };
-  renderPanel(); draw();
-});
-document.getElementById('btnSplit').addEventListener('click', () => {
-  if (!selected || orb.state.blobs[selected].kind !== 'dir' || orb.state.blobs[selected].children.length === 0) { setStatus('select a directory with children'); return; }
-  const kids = orb.state.blobs[selected].children;
-  const child = kids[kids.length - 1];
-  orb.split(selected, child);
-  setStatus('split ' + orb.state.blobs[child].name + ' out'); renderPanel(); draw();
-});
-document.getElementById('btnSave').addEventListener('click', () => {
-  // minimal .orb: JSON manifest + note that payloads are in-memory in this demo
-  const manifest = {
-    version: 2, kind: 'blobfs-orb', blobs: {}, events: orb.state.events,
-    positions: orb.state.positions, proposals: orb.state.proposals
-  };
-  for (const [id, b] of Object.entries(orb.state.blobs)) {
-    manifest.blobs[id] = { id: b.id, kind: b.kind, name: b.name, mass: b.mass, tags: b.tags, children: b.children, parent: b.parent, alive: b.alive, rings: b.rings };
-  }
-  const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = 'demo.orb.json'; a.click(); // browser sandbox: .orb.json instead of .orb.zip
-  setStatus('saved demo.orb.json (rename to .orb for the Python reader)');
-});
-
-function setStatus(t) { document.getElementById('status').textContent = t; }
-
-window.addEventListener('resize', () => { layout(); draw(); });
-renderPanel(); draw();
-setStatus('BlobFS 2D ready \u2014 ' + Object.keys(orb.state.blobs).length + ' blobs loaded');
+  setStatus('BlobFS 2D ready — ' + order.length + ' orbs');
+})();
 </script>
 </body>
 </html>

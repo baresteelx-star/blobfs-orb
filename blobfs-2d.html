@@ -6,321 +6,709 @@
 <title>BlobFS 2D</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { width: 100%; height: 100%; background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; overflow: hidden; }
-  canvas { display: block; width: 100%; height: 100%; cursor: grab; }
-  canvas:active { cursor: grabbing; }
-  #panel { position: absolute; top: 12px; right: 12px; width: 280px; background: rgba(22,27,34,0.95); border: 1px solid #30363d; border-radius: 8px; padding: 14px; font-size: 13px; max-height: calc(100vh - 24px); overflow-y: auto; z-index: 2; }
-  #panel h2 { font-size: 15px; margin-bottom: 10px; color: #58a6ff; }
-  .row { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
-  button { background: #21262d; border: 1px solid #30363d; color: #e6edf3; border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 12px; }
+  html, body { height: 100%; }
+  body { background: #0d1117; color: #e6edf3; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+  #stage { position: fixed; left: 0; top: 0; width: 100px; height: 100px; overflow: hidden; touch-action: none; user-select: none;
+           background-color: #0d1117;
+           background-image: linear-gradient(#161b22 1px, transparent 1px), linear-gradient(90deg, #161b22 1px, transparent 1px);
+           background-size: 60px 60px; }
+  .orb { position: absolute; left: 0; top: 0; border-radius: 50%; cursor: grab; border: 2px solid #30363d; touch-action: none; }
+  .orb.dragging { cursor: grabbing; z-index: 5; }
+  .orb.kind-image { background: radial-gradient(circle at 35% 30%, #2b4a6b, #16263a); }
+  .orb.kind-audio { background: radial-gradient(circle at 35% 30%, #4b2f6b, #24173a); }
+  .orb.kind-text  { background: radial-gradient(circle at 35% 30%, #2f5b3a, #16301e); }
+  .orb.kind-empty, .orb.kind-mixed { background: radial-gradient(circle at 35% 30%, #3a3f47, #1c2128); }
+  .orb.selected { border-color: #58a6ff; }
+  .orb .glow { position: absolute; inset: -8px; border-radius: 50%; pointer-events: none; display: none;
+               box-shadow: 0 0 18px 6px rgba(210,153,34,0.75); border: 2px solid #d29922; }
+  .orb.pending .glow { display: block; }
+  .orb.drop-ok   { border-color: #3fb950; }
+  .orb.drop-ask  { border-color: #d29922; border-style: dashed; }
+  .orb.drop-no   { border-color: #f85149; border-style: dashed; }
+  .orb .label { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); margin-top: 3px; white-space: nowrap;
+                font-size: 12px; font-weight: 600; text-align: center; pointer-events: none; text-shadow: 0 1px 2px #000; }
+  .orb .label small { display: block; font-weight: 400; font-size: 10px; color: #8b949e; }
+  .sub { position: absolute; border-radius: 50%; border: 1px solid rgba(230,237,243,0.35); cursor: pointer; overflow: visible; }
+  .sub.kind-image { background: #2b4a6b; } .sub.kind-audio { background: #4b2f6b; } .sub.kind-text { background: #2f5b3a; }
+  .sub.kind-empty, .sub.kind-mixed { background: #2d333b; }
+  .sub.selected { border: 2px solid #58a6ff; }
+  .sub .slabel { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); font-size: 9px; white-space: nowrap; pointer-events: none; color: #e6edf3; text-shadow: 0 1px 2px #000; }
+  #msg { position: absolute; left: 50%; top: 45%; transform: translate(-50%,-50%); font-size: 18px; color: #8b949e; text-align: center; padding: 16px; display: none; max-width: 90%; }
+  #msg.error { color: #f85149; }
+  #status { position: absolute; bottom: 8px; left: 8px; background: rgba(22,27,34,0.9); border: 1px solid #30363d; border-radius: 6px; padding: 4px 8px; font-size: 11px; color: #8b949e; max-width: calc(100% - 16px); pointer-events: none; }
+  #panel { position: fixed; top: 12px; right: 12px; width: 300px; bottom: 12px; background: rgba(22,27,34,0.97); border: 1px solid #30363d; border-radius: 8px; padding: 12px; font-size: 12px; overflow-y: auto; }
+  @media (max-width: 700px) { #panel { width: 220px; padding: 8px; } }
+  #panel h2 { font-size: 15px; margin-bottom: 8px; color: #58a6ff; }
+  #panel h3 { font-size: 12px; margin: 10px 0 4px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.04em; }
+  .row { display: flex; gap: 5px; margin-bottom: 6px; flex-wrap: wrap; }
+  button { background: #21262d; border: 1px solid #30363d; color: #e6edf3; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 12px; }
+  button:hover { background: #30363d; }
   button.primary { background: #1f6feb; border-color: #1f6feb; }
-  .blob-row { padding: 6px 8px; border-radius: 6px; margin-bottom: 4px; cursor: pointer; border: 1px solid transparent; }
-  .blob-row.selected { border-color: #58a6ff; }
-  .meta { color: #8b949e; font-size: 11px; }
-  .pending { background: rgba(210,153,34,0.15); border: 1px solid #d29922; border-radius: 6px; padding: 8px; margin-bottom: 8px; }
+  button.primary:hover { background: #388bfd; }
+  .suggestion { background: rgba(210,153,34,0.15); border: 1px solid #d29922; border-radius: 6px; padding: 6px; margin-bottom: 6px; }
+  .suggestion .reason { color: #d29922; font-size: 11px; margin-bottom: 5px; }
+  .muted { color: #8b949e; }
+  #inspector dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; }
+  #inspector dt { color: #8b949e; }
+  #inspector dd { word-break: break-word; }
+  .child-link { color: #58a6ff; cursor: pointer; text-decoration: underline; margin-right: 6px; }
+  #history { list-style: none; max-height: 180px; overflow-y: auto; font-size: 11px; border: 1px solid #30363d; border-radius: 6px; padding: 4px 6px; }
+  #history li { padding: 2px 0; border-bottom: 1px solid #21262d; }
+  #history li .t { color: #d2a8ff; font-weight: 600; margin-right: 4px; }
   .hint { color: #8b949e; font-size: 11px; margin-top: 8px; line-height: 1.4; }
-  #status { position: absolute; bottom: 12px; left: 12px; background: rgba(22,27,34,0.9); border: 1px solid #30363d; border-radius: 6px; padding: 6px 10px; font-size: 12px; color: #8b949e; z-index: 2; }
 </style>
 </head>
 <body>
-<canvas id="stage"></canvas>
+<div id="stage">
+  <div id="msg"></div>
+  <div id="status">loading…</div>
+</div>
 <div id="panel">
   <h2>BlobFS 2D</h2>
   <div class="row">
-    <button class="primary" id="btnNew">New blob</button>
-    <button id="btnSplit">Split selected</button>
-    <button id="btnSave">Save .orb</button>
+    <button class="primary" id="btnNew">New Blob</button>
+    <button id="btnSplit">Split Selected</button>
+    <button id="btnSave">Save Orb</button>
   </div>
-  <div id="pendingList"></div>
-  <div id="blobList"></div>
-  <div class="hint">Drag one circle onto another and release to merge. Amber means a suggestion. Same kind merges on release. Different kinds need a shared tag and Accept.</div>
+  <div class="row">
+    <button id="btnRename">Rename</button>
+    <button id="btnTag">Tag</button>
+  </div>
+  <h3>Suggestions</h3>
+  <div id="pendingList"><div class="muted">none</div></div>
+  <h3>Selected</h3>
+  <div id="inspector"><div class="muted">Click an orb to inspect it.</div></div>
+  <h3>History</h3>
+  <ul id="history"></ul>
+  <div class="hint">Drag an orb onto another and release to merge. Same kind merges on drop. Different kinds need a shared tag and your confirmation (amber glow, Accept / Keep apart). Without a shared tag they bounce apart. Pull apart before release to cancel. Physics may propose, never commit.</div>
 </div>
-<div id="status">loading</div>
 <script>
 (function () {
-  var BODY = 1024 * 1024;
-  var nextId = 1;
-  var blobs = {};
-  var proposals = {};
-  var selected = null;
-  var dragging = null;
-  var dragPos = null;
+  'use strict';
 
-  function addBlob(kind, name, mass, tags) {
+  // ---------- model ----------
+  var BODY = 1024 * 1024; // constant mass added to every blob (1 MB)
+  var KINDS = ['image', 'audio', 'text'];
+
+  var blobs = {};          // id -> blob
+  var order = [];          // creation order of ids
+  var events = [];         // append-only event log
+  var pending = [];        // [{ key, a, b, source, shared, crossKind }]
+  var refused = {};        // pairKey -> true (physics will not re-suggest)
+  var nextId = 1, nextSeq = 1;
+  var selected = null;     // selected blob id (top-level or nested)
+
+  var stage, panel, msgEl, statusEl;
+  var bounds = { w: 400, h: 300 };
+  var scaleK = 20;
+  var drag = null;
+  var orbEls = {};         // top-level id -> element
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c];
+    });
+  }
+  function fmtBytes(n) {
+    if (n >= 1e6) return (n / 1e6).toFixed(2) + ' MB';
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + ' KB';
+    return n + ' B';
+  }
+  function pairKey(a, b) { return a < b ? a + '|' + b : b + '|' + a; }
+
+  function logEvent(type, data, text, ids) {
+    var ev = { seq: nextSeq++, time: new Date().toISOString(), type: type, text: text };
+    for (var k in data) if (Object.prototype.hasOwnProperty.call(data, k)) ev[k] = data[k];
+    events.push(ev);
+    (ids || []).forEach(function (id) { if (blobs[id]) blobs[id].history.push(ev.seq); });
+    return ev;
+  }
+
+  function makeBlob(type, name, kind, size, tags) {
     var id = 'b' + (nextId++);
-    blobs[id] = { id: id, kind: kind, name: name, mass: mass, tags: tags.slice(), children: [], parent: null, alive: true, x: 0, y: 0 };
+    blobs[id] = { id: id, type: type, name: name, kind: type === 'file' ? kind : null, size: type === 'file' ? size : 0,
+                  tags: (tags || []).slice(), children: [], parent: null, history: [], rings: 0, autoName: false,
+                  x: 0, y: 0, vx: 0, vy: 0 };
+    order.push(id);
     return id;
   }
-  function addFile(name, bytes, tags) { return addBlob('file', name, BODY + bytes, tags); }
-  function addDir(name, tags) { return addBlob('dir', name, BODY, tags); }
-
-  var covers = addDir('Covers', ['music']);
-  var sessions = addDir('Sessions', ['music', '2024']);
-  var masters = addDir('Masters', ['music']);
-  var photo1 = addFile('photo1.jpg', 2700000, ['vacation', '2024']);
-  var photo2 = addFile('photo2.jpg', 2800000, ['vacation', '2024']);
-  var song1 = addFile('song1.wav', 800000, ['berlin-set', 'demo']);
-  var notes = addFile('notes.txt', 12000, ['work']);
-  var order = [covers, sessions, masters, photo1, photo2, song1, notes];
-
-  function layout() {
-    var w = window.innerWidth;
-    var h = window.innerHeight;
-    var pad = 80;
-    var cols = 4;
-    var i, id, col, row;
-    for (i = 0; i < order.length; i++) {
-      id = order[i];
-      if (!blobs[id] || !blobs[id].alive) continue;
-      col = i % cols;
-      row = Math.floor(i / cols);
-      blobs[id].x = pad + col * ((w - 320) / cols);
-      blobs[id].y = pad + 40 + row * 180;
-      if (blobs[id].x < 40) blobs[id].x = 40;
-      if (blobs[id].y < 40) blobs[id].y = 40;
-    }
+  function createFile(name, kind, size, tags, parentId) {
+    var id = makeBlob('file', name, kind, size, tags);
+    if (parentId) attach(parentId, id);
+    logEvent('create', { id: id, blobType: 'file', kind: kind, name: blobs[id].name, size: size, parent: parentId || null },
+             'created file "' + blobs[id].name + '" (' + kind + ')' + (parentId ? ' in "' + blobs[parentId].name + '"' : ''), [id]);
+    return id;
+  }
+  function createDir(name, tags) {
+    var id = makeBlob('dir', name, null, 0, tags);
+    logEvent('create', { id: id, blobType: 'dir', name: name }, 'created directory "' + name + '"', [id]);
+    return id;
   }
 
-  function radius(mass) { return Math.max(22, Math.cbrt(mass / BODY) * 24); }
+  // mass = content size + constant; a directory's content is its children (recursively)
+  function contentSize(id) {
+    var b = blobs[id];
+    if (b.type === 'file') return b.size;
+    var s = 0;
+    for (var i = 0; i < b.children.length; i++) s += massOf(b.children[i]);
+    return s;
+  }
+  function massOf(id) { return BODY + contentSize(id); }
 
-  var canvas = document.getElementById('stage');
-  var ctx = canvas.getContext('2d');
-  var statusEl = document.getElementById('status');
+  // kind: file kind; directory = the single kind of its descendant files, 'empty' or 'mixed'
+  function kindOf(id) {
+    var b = blobs[id];
+    if (b.type === 'file') return b.kind;
+    var set = {};
+    (function walk(x) {
+      blobs[x].children.forEach(function (c) { if (blobs[c].type === 'file') set[blobs[c].kind] = 1; else walk(c); });
+    })(id);
+    var ks = Object.keys(set);
+    return ks.length === 0 ? 'empty' : (ks.length === 1 ? ks[0] : 'mixed');
+  }
+  function sameKind(a, b) {
+    var ka = kindOf(a), kb = kindOf(b);
+    return ka === kb || ka === 'empty' || kb === 'empty';
+  }
+  function sharedTags(a, b) {
+    var tb = blobs[b].tags;
+    return blobs[a].tags.filter(function (t) { return tb.indexOf(t) !== -1; });
+  }
+  function topLevel() { return order.filter(function (id) { return blobs[id].parent === null; }); }
+  function topAncestor(id) { while (blobs[id].parent) id = blobs[id].parent; return id; }
 
+  function uniqueName(parentId, name, exceptId) {
+    var taken = {};
+    blobs[parentId].children.forEach(function (c) { if (c !== exceptId) taken[blobs[c].name] = 1; });
+    if (!taken[name]) return name;
+    var m = /^(.*?)(\.[A-Za-z0-9]+)?$/.exec(name);
+    var base = m[1], ext = m[2] || '';
+    for (var i = 2; ; i++) { var n = base + ' (' + i + ')' + ext; if (!taken[n]) return n; }
+  }
+  function attach(parentId, childId) {
+    var c = blobs[childId], old = c.name;
+    c.name = uniqueName(parentId, c.name);
+    c.parent = parentId;
+    blobs[parentId].children.push(childId);
+    return old !== c.name ? { from: old, to: c.name } : null;
+  }
+
+  // ---------- operations ----------
+  function removePendingFor(ids) {
+    pending = pending.filter(function (p) { return ids.indexOf(p.a) === -1 && ids.indexOf(p.b) === -1; });
+  }
+
+  function merge(a, b, confirmedBy) {
+    if (confirmedBy === 'physics') throw new Error('physics may propose, never commit');
+    var A = blobs[a], B = blobs[b];
+    if (!A || !B || a === b) throw new Error('bad merge');
+    if (A.parent || B.parent) throw new Error('only top-level orbs merge');
+    var result, rule, renames = [], nameA = A.name, nameB = B.name;
+    var px = B.x, py = B.y;
+    if (A.type === 'dir' && B.type === 'dir') {
+      rule = 'dir+dir';
+      result = makeBlob('dir', B.name + ' + ' + A.name, null, 0, unionTags(A.tags, B.tags));
+      blobs[result].autoName = true;
+      renames.push(attach(result, b)); renames.push(attach(result, a)); // folders stay sub-orbs, never flattened
+    } else if (A.type === 'file' && B.type === 'file') {
+      rule = 'file+file';
+      result = makeBlob('dir', B.name + ' + ' + A.name, null, 0, unionTags(A.tags, B.tags));
+      blobs[result].autoName = true;
+      renames.push(attach(result, b)); renames.push(attach(result, a));
+    } else {
+      rule = 'file+dir';
+      var d = A.type === 'dir' ? a : b, f = d === a ? b : a;
+      result = d;
+      renames.push(attach(d, f));
+    }
+    var R = blobs[result];
+    R.x = px; R.y = py; R.vx = 0; R.vy = 0;
+    R.rings += 1;
+    renames = renames.filter(Boolean);
+    removePendingFor([a, b]);
+    logEvent('merge', { a: a, b: b, result: result, rule: rule, confirmedBy: confirmedBy, kinds: [kindOf(a), kindOf(b)],
+                        resultMass: massOf(result), renamed: renames },
+             'merged "' + nameA + '" + "' + nameB + '" → "' + R.name + '" (' + rule + ', by ' + confirmedBy + ')' +
+             (renames.length ? '; renamed ' + renames.map(function (r) { return '"' + r.from + '"→"' + r.to + '"'; }).join(', ') : ''),
+             [a, b, result].filter(function (x, i, arr) { return arr.indexOf(x) === i; }));
+    selected = result;
+    clampOrb(R);
+    structureChanged();
+    return result;
+  }
+  function unionTags(x, y) { var o = x.slice(); y.forEach(function (t) { if (o.indexOf(t) === -1) o.push(t); }); return o; }
+
+  function split(id) {
+    var b = blobs[id];
+    if (!b) throw new Error('nothing selected');
+    var parentId, childId;
+    if (b.parent) { parentId = b.parent; childId = id; }
+    else if (b.type === 'dir' && b.children.length) { parentId = id; childId = b.children[b.children.length - 1]; }
+    else throw new Error('select a directory with children, or a child orb');
+    var P = blobs[parentId], C = blobs[childId];
+    var before = massOf(parentId), cm = massOf(childId);
+    var anchor = blobs[topAncestor(parentId)];
+    P.children = P.children.filter(function (x) { return x !== childId; });
+    C.parent = null;
+    var after = massOf(parentId);
+    if (before - after !== cm) throw new Error('split math mismatch');
+    var ang = Math.random() * Math.PI * 2, dist = radiusOf(anchor.id) + radiusOf(childId) + 24;
+    C.x = anchor.x + Math.cos(ang) * dist; C.y = anchor.y + Math.sin(ang) * dist; C.vx = C.vy = 0;
+    clampOrb(C);
+    logEvent('split', { parent: parentId, child: childId, childMass: cm, parentMassBefore: before, parentMassAfter: after },
+             'split "' + C.name + '" out of "' + P.name + '" (parent lost ' + fmtBytes(cm) + ')', [parentId, childId]);
+    selected = childId;
+    structureChanged();
+    return childId;
+  }
+
+  function rename(id, name) {
+    var b = blobs[id];
+    name = String(name || '').trim();
+    if (!b || !name || name === b.name) return false;
+    var old = b.name;
+    b.name = b.parent ? uniqueName(b.parent, name, id) : name;
+    b.autoName = false;
+    logEvent('rename', { id: id, from: old, to: b.name }, 'renamed "' + old + '" → "' + b.name + '"', [id]);
+    structureChanged();
+    return true;
+  }
+  function addTag(id, tag) {
+    var b = blobs[id];
+    tag = String(tag || '').trim();
+    if (!b || !tag || b.tags.indexOf(tag) !== -1) return false;
+    b.tags.push(tag);
+    logEvent('tag', { id: id, tag: tag }, 'tagged "' + b.name + '" with "' + tag + '"', [id]);
+    structureChanged();
+    return true;
+  }
+
+  function findPending(a, b) {
+    var k = pairKey(a, b);
+    for (var i = 0; i < pending.length; i++) if (pending[i].key === k) return pending[i];
+    return null;
+  }
+  function suggest(a, b, source) {
+    if (findPending(a, b)) return null;
+    var p = { key: pairKey(a, b), a: a, b: b, source: source, shared: sharedTags(a, b), crossKind: !sameKind(a, b) };
+    pending.push(p);
+    renderPending(); markClasses();
+    return p;
+  }
+  function acceptSuggestion(key) {
+    var p = pending.filter(function (x) { return x.key === key; })[0];
+    if (!p) return null;
+    return merge(p.a, p.b, 'human-accept');
+  }
+  function keepApart(key) {
+    var p = pending.filter(function (x) { return x.key === key; })[0];
+    if (!p) return;
+    pending = pending.filter(function (x) { return x !== p; });
+    refused[p.key] = true;
+    var A = blobs[p.a], B = blobs[p.b];
+    logEvent('refuse', { a: p.a, b: p.b, source: p.source, shared: p.shared },
+             'kept apart "' + A.name + '" and "' + B.name + '" (suggested by ' + p.source + ')', [p.a, p.b]);
+    push(A, B, 6);
+    renderPending(); renderHistory(); renderInspector(); markClasses();
+  }
+  function push(A, B, speed) {
+    var dx = A.x - B.x, dy = A.y - B.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
+    A.vx += dx / d * speed; A.vy += dy / d * speed;
+    B.vx -= dx / d * speed; B.vy -= dy / d * speed;
+  }
+
+  // drop resolution: the kind gate
+  function resolveDrop(a, b) {
+    if (sameKind(a, b)) { merge(a, b, 'human-drop'); setStatus('Merged (same kind).'); return 'merged'; }
+    var shared = sharedTags(a, b);
+    if (shared.length) {
+      suggest(a, b, 'drop');
+      setStatus('Different kinds sharing "' + shared.join(', ') + '": confirm with Accept or Keep apart.');
+      return 'pending';
+    }
+    blobs[a].vx = 0; blobs[a].vy = 0;
+    push(blobs[a], blobs[b], 14);
+    setStatus('Different kinds, no shared tag: bounced apart.');
+    return 'bounced';
+  }
+
+  // ---------- geometry ----------
+  function computeBounds() {
+    var pw = panel.offsetWidth + 24;
+    var w = Math.max(120, window.innerWidth - pw);
+    var h = Math.max(120, window.innerHeight);
+    bounds = { w: w, h: h };
+    stage.style.width = w + 'px';
+    stage.style.height = h + 'px';
+    scaleK = Math.max(8, Math.min(22, Math.min(w, h) / 18));
+  }
+  function radiusOf(id) {
+    var r = scaleK * Math.cbrt(massOf(id) / BODY); // radius ∝ cube root of mass
+    return Math.max(10, Math.min(r, Math.min(bounds.w, bounds.h) / 4));
+  }
+  function clampOrb(b) {
+    var r = radiusOf(b.id);
+    var minX = r + 4, maxX = bounds.w - r - 4, minY = r + 4, maxY = bounds.h - r - 30;
+    if (maxX < minX) maxX = minX = bounds.w / 2;
+    if (maxY < minY) maxY = minY = bounds.h / 2;
+    if (b.x < minX) { b.x = minX; b.vx = Math.abs(b.vx) * 0.5; }
+    if (b.x > maxX) { b.x = maxX; b.vx = -Math.abs(b.vx) * 0.5; }
+    if (b.y < minY) { b.y = minY; b.vy = Math.abs(b.vy) * 0.5; }
+    if (b.y > maxY) { b.y = maxY; b.vy = -Math.abs(b.vy) * 0.5; }
+  }
+  function initialLayout() {
+    var ids = topLevel(), n = ids.length;
+    var maxR = 0;
+    ids.forEach(function (id) { maxR = Math.max(maxR, radiusOf(id)); });
+    var cx = bounds.w / 2, cy = (bounds.h - 26) / 2;
+    var R = Math.max(0, Math.min(bounds.w / 2, (bounds.h - 26) / 2) - maxR - 10);
+    ids.forEach(function (id, i) {
+      var a = -Math.PI / 2 + i * 2 * Math.PI / n, b = blobs[id];
+      b.x = cx + Math.cos(a) * R; b.y = cy + Math.sin(a) * R; b.vx = b.vy = 0;
+      clampOrb(b);
+    });
+  }
+  function onResize() {
+    computeBounds();
+    topLevel().forEach(function (id) { clampOrb(blobs[id]); });
+    rebuildOrbs();
+  }
+
+  // ---------- rendering ----------
+  function ringShadow(n) {
+    var parts = [], shown = Math.min(n, 6);
+    for (var i = 0; i < shown; i++) {
+      var o = 3 + i * 5;
+      parts.push('0 0 0 ' + o + 'px rgba(13,17,23,0.95)');
+      parts.push('0 0 0 ' + (o + 2) + 'px rgba(88,166,255,' + (0.85 - i * 0.1).toFixed(2) + ')');
+    }
+    // CSS draws the first shadow on top, so smaller rings must come first
+    return parts.length ? parts.join(', ') : 'none';
+  }
+  function buildSubs(container, id, r, depth) {
+    var kids = blobs[id].children, n = kids.length;
+    if (!n || depth > 2) return;
+    var ring = n === 1 ? 0 : r * 0.5;
+    var sr = n === 1 ? r * 0.45 : Math.min(r * 0.34, ring * Math.sin(Math.PI / n) * 0.92);
+    kids.forEach(function (cid, i) {
+      var a = -Math.PI / 2 + i * 2 * Math.PI / n;
+      var cx = r + Math.cos(a) * ring, cy = r + Math.sin(a) * ring;
+      var el = document.createElement('div');
+      el.className = 'sub kind-' + kindOf(cid) + (cid === selected ? ' selected' : '');
+      el.dataset.id = cid;
+      el.title = blobs[cid].name + ' (' + kindOf(cid) + ', ' + fmtBytes(massOf(cid)) + ')';
+      el.style.width = el.style.height = (2 * sr) + 'px';
+      el.style.left = (cx - sr) + 'px'; el.style.top = (cy - sr) + 'px';
+      if (sr >= 13) { var l = document.createElement('div'); l.className = 'slabel'; l.textContent = blobs[cid].name; el.appendChild(l); }
+      container.appendChild(el);
+      buildSubs(el, cid, sr, depth + 1);
+    });
+  }
+  function rebuildOrbs() {
+    Object.keys(orbEls).forEach(function (id) { orbEls[id].parentNode && orbEls[id].parentNode.removeChild(orbEls[id]); });
+    orbEls = {};
+    topLevel().forEach(function (id) {
+      var b = blobs[id], r = radiusOf(id);
+      var el = document.createElement('div');
+      el.className = 'orb kind-' + kindOf(id);
+      el.dataset.id = id;
+      el.style.width = el.style.height = (2 * r) + 'px';
+      el.style.boxShadow = ringShadow(b.rings);
+      var g = document.createElement('div'); g.className = 'glow'; el.appendChild(g);
+      buildSubs(el, id, r - 2, 1);
+      var lab = document.createElement('div'); lab.className = 'label';
+      lab.textContent = b.name;
+      var sm = document.createElement('small');
+      sm.textContent = (b.type === 'dir' ? 'dir · ' : '') + kindOf(id) + ' · ' + fmtBytes(massOf(id)) + (b.rings ? ' · ' + b.rings + ' ring' + (b.rings > 1 ? 's' : '') : '');
+      lab.appendChild(sm);
+      el.appendChild(lab);
+      stage.insertBefore(el, msgEl);
+      orbEls[id] = el;
+    });
+    positionOrbs(); markClasses(); checkEmpty();
+  }
+  function positionOrbs() {
+    for (var id in orbEls) {
+      var b = blobs[id], r = radiusOf(id);
+      orbEls[id].style.transform = 'translate(' + (b.x - r).toFixed(1) + 'px,' + (b.y - r).toFixed(1) + 'px)';
+    }
+  }
+  function markClasses() {
+    var pend = {};
+    pending.forEach(function (p) { pend[p.a] = 1; pend[p.b] = 1; });
+    for (var id in orbEls) {
+      var el = orbEls[id];
+      el.classList.toggle('selected', id === selected);
+      el.classList.toggle('pending', !!pend[id]);
+      el.classList.toggle('dragging', !!(drag && drag.id === id && drag.moved));
+      var t = drag && drag.target === id ? drag.verdict : null;
+      el.classList.toggle('drop-ok', t === 'ok');
+      el.classList.toggle('drop-ask', t === 'ask');
+      el.classList.toggle('drop-no', t === 'no');
+    }
+  }
+  function checkEmpty() {
+    if (msgEl.classList.contains('error')) return;
+    var none = topLevel().length === 0 || !stage.querySelector('.orb');
+    msgEl.textContent = 'No orbs loaded';
+    msgEl.style.display = none ? 'block' : 'none';
+  }
+  function showError(e) {
+    msgEl.className = 'error';
+    msgEl.textContent = 'Error: ' + (e && e.message ? e.message : String(e));
+    msgEl.style.display = 'block';
+  }
   function setStatus(t) { statusEl.textContent = t; }
 
-  function pendingFor(id) {
-    var pid, pr;
-    for (pid in proposals) {
-      pr = proposals[pid];
-      if (pr.status === 'pending' && (pr.a === id || pr.b === id)) return true;
-    }
-    return false;
-  }
-
-  function draw() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    var id, b, r, count = 0;
-    for (id in blobs) {
-      b = blobs[id];
-      if (!b.alive) continue;
-      count++;
-      r = radius(b.mass);
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
-      if (id === selected) {
-        ctx.fillStyle = '#1c2128';
-        ctx.fill();
-        ctx.strokeStyle = '#58a6ff';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      } else if (pendingFor(id)) {
-        ctx.fillStyle = 'rgba(210,153,34,0.25)';
-        ctx.fill();
-        ctx.strokeStyle = '#d29922';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      } else {
-        ctx.fillStyle = b.kind === 'dir' ? '#21262d' : '#161b22';
-        ctx.fill();
-        ctx.strokeStyle = '#8b949e';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-      }
-      ctx.fillStyle = '#e6edf3';
-      ctx.font = '12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(b.name, b.x, b.y + 4);
-    }
-    if (dragging && dragPos) {
-      b = blobs[dragging];
-      r = radius(b.mass);
-      ctx.beginPath();
-      ctx.arc(dragPos.x, dragPos.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(88,166,255,0.35)';
-      ctx.fill();
-      ctx.strokeStyle = '#58a6ff';
-      ctx.stroke();
-    }
-    if (count === 0) {
-      ctx.fillStyle = '#8b949e';
-      ctx.font = '16px sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText('No orbs loaded', 24, 40);
-    }
-  }
-
-  function sharedTags(a, b) {
-    var out = [], i;
-    for (i = 0; i < a.tags.length; i++) if (b.tags.indexOf(a.tags[i]) >= 0) out.push(a.tags[i]);
-    return out;
-  }
-
-  function propose(a, b) {
-    var sa = blobs[a], sb = blobs[b], shared, pid;
-    if (!sa || !sb || !sa.alive || !sb.alive) return;
-    if (sa.parent || sb.parent) return;
-    shared = sharedTags(sa, sb);
-    if (sa.kind !== sb.kind && shared.length === 0) return;
-    pid = 'p' + nextId++;
-    proposals[pid] = { pid: pid, a: a, b: b, status: 'pending', shared: shared };
-  }
-
-  function commit(pid) {
-    var pr = proposals[pid];
-    var sa, sb, parent, child, other;
-    if (!pr || pr.status !== 'pending') return;
-    sa = blobs[pr.a]; sb = blobs[pr.b];
-    if (!sa.alive || !sb.alive) { pr.status = 'stale'; return; }
-    if (sa.kind === 'dir' && sb.kind === 'dir') {
-      parent = sa.mass >= sb.mass ? sa : sb;
-      child = parent === sa ? sb : sa;
-    } else if (sa.kind === 'file' && sb.kind === 'file') {
-      parent = blobs[addDir(sa.name + ' + ' + sb.name, sa.tags.concat(sb.tags))];
-      parent.x = sa.x; parent.y = sa.y;
-      order.push(parent.id);
-      child = null;
-      sa.alive = false; sb.alive = false;
-    } else {
-      parent = sa.kind === 'dir' ? sa : sb;
-      child = parent === sa ? sb : sa;
-    }
-    if (child) {
-      child.parent = parent.id;
-      parent.children.push(child.id);
-      parent.mass += child.mass;
-      child.alive = false;
-    }
-    pr.status = 'committed';
-    setStatus('merged');
-  }
-
-  function renderPanel() {
+  function renderPending() {
     var pl = document.getElementById('pendingList');
-    var bl = document.getElementById('blobList');
-    var pid, pr, id, b, html;
     pl.innerHTML = '';
-    for (pid in proposals) {
-      pr = proposals[pid];
-      if (pr.status !== 'pending') continue;
-      html = document.createElement('div');
-      html.className = 'pending';
-      html.innerHTML = 'suggested: ' + blobs[pr.a].name + ' + ' + blobs[pr.b].name +
-        '<div class="row"><button data-accept="' + pid + '">Accept</button><button data-refuse="' + pid + '">Refuse</button></div>';
-      pl.appendChild(html);
-    }
-    bl.innerHTML = '';
-    for (id in blobs) {
-      b = blobs[id];
-      if (!b.alive) continue;
-      html = document.createElement('div');
-      html.className = 'blob-row' + (id === selected ? ' selected' : '');
-      html.innerHTML = '<div>' + b.name + '</div><div class="meta">' + b.kind + ' · ' + (b.mass / 1000000).toFixed(1) + ' MB</div>';
-      html.setAttribute('data-id', id);
-      bl.appendChild(html);
-    }
+    if (!pending.length) { pl.innerHTML = '<div class="muted">none</div>'; return; }
+    pending.forEach(function (p) {
+      var A = blobs[p.a], B = blobs[p.b];
+      var d = document.createElement('div'); d.className = 'suggestion';
+      d.innerHTML = '<div class="reason">Merge "' + esc(A.name) + '" + "' + esc(B.name) + '"?<br>' +
+        (p.crossKind ? 'cross-kind (' + esc(kindOf(p.a)) + ' ↔ ' + esc(kindOf(p.b)) + ')' : 'same kind') +
+        (p.shared.length ? ', shared tag: ' + esc(p.shared.join(', ')) : '') + ' · proposed by ' + esc(p.source) + '</div>' +
+        '<button class="primary" data-accept="' + esc(p.key) + '">Accept</button> <button data-refuse="' + esc(p.key) + '">Keep apart</button>';
+      pl.appendChild(d);
+    });
   }
+  function renderInspector() {
+    var el = document.getElementById('inspector');
+    if (!selected || !blobs[selected]) { el.innerHTML = '<div class="muted">Click an orb to inspect it.</div>'; return; }
+    var b = blobs[selected];
+    var kids = b.children.map(function (c) { return '<span class="child-link" data-select="' + esc(c) + '">' + esc(blobs[c].name) + '</span>'; }).join('') || '<span class="muted">—</span>';
+    el.innerHTML = '<dl>' +
+      '<dt>Name</dt><dd>' + esc(b.name) + (b.autoName ? ' <span class="muted">(auto)</span>' : '') + '</dd>' +
+      '<dt>Type</dt><dd>' + (b.type === 'dir' ? 'directory' : 'file') + '</dd>' +
+      '<dt>Kind</dt><dd>' + esc(kindOf(selected)) + '</dd>' +
+      '<dt>Size</dt><dd>' + fmtBytes(contentSize(selected)) + '</dd>' +
+      '<dt>Mass</dt><dd>' + fmtBytes(massOf(selected)) + ' <span class="muted">(' + massOf(selected) + ' B)</span></dd>' +
+      '<dt>Tags</dt><dd>' + (b.tags.length ? esc(b.tags.join(', ')) : '<span class="muted">—</span>') + '</dd>' +
+      '<dt>Children</dt><dd>' + kids + '</dd>' +
+      '<dt>Rings</dt><dd>' + b.rings + '</dd>' +
+      '<dt>Parent</dt><dd>' + (b.parent ? '<span class="child-link" data-select="' + esc(b.parent) + '">' + esc(blobs[b.parent].name) + '</span>' : '<span class="muted">top level</span>') + '</dd>' +
+      '<dt>Events</dt><dd>' + b.history.length + '</dd>' +
+      '</dl>';
+  }
+  function renderHistory() {
+    var ul = document.getElementById('history');
+    ul.innerHTML = '';
+    events.slice(-60).reverse().forEach(function (ev) {
+      var li = document.createElement('li');
+      li.innerHTML = '<span class="t">#' + ev.seq + ' ' + esc(ev.type) + '</span>' + esc(ev.text);
+      ul.appendChild(li);
+    });
+  }
+  function structureChanged() {
+    // drop suggestions whose orbs are no longer top level
+    pending = pending.filter(function (p) { return blobs[p.a].parent === null && blobs[p.b].parent === null; });
+    rebuildOrbs(); renderPending(); renderInspector(); renderHistory();
+  }
+  function select(id) { selected = id; rebuildOrbs(); renderInspector(); }
 
-  canvas.addEventListener('pointerdown', function (e) {
-    var rect = canvas.getBoundingClientRect();
-    var mx = e.clientX - rect.left, my = e.clientY - rect.top;
-    var id, b, r, hit = null;
-    for (id in blobs) {
-      b = blobs[id];
-      if (!b.alive) continue;
-      r = radius(b.mass);
-      if ((mx - b.x) * (mx - b.x) + (my - b.y) * (my - b.y) <= r * r) hit = id;
-    }
-    selected = hit;
-    if (hit) {
-      dragging = hit;
-      dragPos = { x: mx, y: my };
-    }
-    renderPanel(); draw();
-  });
-  canvas.addEventListener('pointermove', function (e) {
-    var rect, mx, my, id, b, r, ro;
-    if (!dragging) return;
-    rect = canvas.getBoundingClientRect();
-    mx = e.clientX - rect.left; my = e.clientY - rect.top;
-    dragPos = { x: mx, y: my };
-    b = blobs[dragging];
-    r = radius(b.mass);
-    for (id in blobs) {
-      if (id === dragging || !blobs[id].alive) continue;
-      ro = radius(blobs[id].mass);
-      if ((mx - blobs[id].x) * (mx - blobs[id].x) + (my - blobs[id].y) * (my - blobs[id].y) <= (r + ro) * (r + ro)) {
-        propose(dragging, id);
+  // ---------- physics: separation, damping, proximity suggestions (never commits) ----------
+  function tick() {
+    var ids = topLevel(), i, j;
+    for (i = 0; i < ids.length; i++) {
+      for (j = i + 1; j < ids.length; j++) {
+        var A = blobs[ids[i]], B = blobs[ids[j]];
+        var aDrag = drag && drag.moved && drag.id === A.id, bDrag = drag && drag.moved && drag.id === B.id;
+        if (aDrag || bDrag) continue;
+        var ra = radiusOf(A.id), rb = radiusOf(B.id);
+        var dx = B.x - A.x, dy = B.y - A.y, d = Math.sqrt(dx * dx + dy * dy) || 0.01;
+        var min = ra + rb + 10;
+        if (d < min) {
+          var f = (min - d) * 0.08;
+          A.vx -= dx / d * f; A.vy -= dy / d * f; B.vx += dx / d * f; B.vy += dy / d * f;
+        }
+        var gap = d - ra - rb, key = pairKey(A.id, B.id), p = findPending(A.id, B.id);
+        if (!p && gap < 26 && !refused[key] && sharedTags(A.id, B.id).length) suggest(A.id, B.id, 'physics');
+        else if (p && p.source === 'physics' && gap > 70) { pending = pending.filter(function (x) { return x !== p; }); renderPending(); markClasses(); }
       }
     }
-    renderPanel(); draw();
-  });
-  canvas.addEventListener('pointerup', function () {
-    var pid, pr, same;
-    if (!dragging) return;
-    for (pid in proposals) {
-      pr = proposals[pid];
-      if (pr.status !== 'pending') continue;
-      if (pr.a !== dragging && pr.b !== dragging) continue;
-      same = blobs[pr.a].kind === blobs[pr.b].kind;
-      if (same) commit(pid);
-    }
-    dragging = null; dragPos = null;
-    renderPanel(); draw();
-  });
+    ids.forEach(function (id) {
+      var b = blobs[id];
+      if (drag && drag.moved && drag.id === id) return;
+      b.x += b.vx; b.y += b.vy;
+      b.vx *= 0.82; b.vy *= 0.82;
+      if (Math.abs(b.vx) < 0.01) b.vx = 0;
+      if (Math.abs(b.vy) < 0.01) b.vy = 0;
+      clampOrb(b);
+    });
+    positionOrbs();
+    window.requestAnimationFrame(tick);
+  }
 
-  document.getElementById('pendingList').addEventListener('click', function (e) {
-    var acc = e.target.getAttribute('data-accept');
-    var ref = e.target.getAttribute('data-refuse');
-    if (acc) { commit(acc); setStatus('accepted'); }
-    if (ref && proposals[ref]) { proposals[ref].status = 'refused'; setStatus('refused'); }
-    renderPanel(); draw();
-  });
-  document.getElementById('blobList').addEventListener('click', function (e) {
-    var row = e.target.closest('[data-id]');
-    if (!row) return;
-    selected = row.getAttribute('data-id');
-    renderPanel(); draw();
-  });
-  document.getElementById('btnNew').addEventListener('click', function () {
-    var name = prompt('blob name');
-    var id;
-    if (!name) return;
-    id = addFile(name, 100000, []);
-    blobs[id].x = 120; blobs[id].y = 120;
-    order.push(id);
-    renderPanel(); draw();
-  });
-  document.getElementById('btnSplit').addEventListener('click', function () {
-    var b, childId, child;
-    if (!selected) { setStatus('select a folder first'); return; }
-    b = blobs[selected];
-    if (!b || b.children.length === 0) { setStatus('nothing to split'); return; }
-    childId = b.children.pop();
-    child = blobs[childId];
-    b.mass -= child.mass;
-    child.parent = null;
-    child.alive = true;
-    child.x = b.x + 50; child.y = b.y + 50;
-    setStatus('split ' + child.name);
-    renderPanel(); draw();
-  });
-  document.getElementById('btnSave').addEventListener('click', function () {
+  // ---------- pointer interaction (mouse + touch + pen) ----------
+  function localPoint(e) {
+    var rc = stage.getBoundingClientRect();
+    return { x: e.clientX - rc.left, y: e.clientY - rc.top };
+  }
+  function onPointerDown(e) {
+    var orbEl = e.target.closest ? e.target.closest('.orb') : null;
+    if (!orbEl) { if (e.target === stage) select(null); return; }
+    var id = orbEl.dataset.id, b = blobs[id], pt = localPoint(e);
+    var subEl = e.target.closest('.sub');
+    drag = { id: id, pointerId: e.pointerId, offX: pt.x - b.x, offY: pt.y - b.y, sx: pt.x, sy: pt.y, moved: false,
+             target: null, verdict: null, clickId: subEl ? subEl.dataset.id : id };
+    try { stage.setPointerCapture(e.pointerId); } catch (err) { /* capture is optional */ }
+    e.preventDefault();
+  }
+  function onPointerMove(e) {
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    var pt = localPoint(e), b = blobs[drag.id];
+    if (!drag.moved && Math.abs(pt.x - drag.sx) + Math.abs(pt.y - drag.sy) > 5) drag.moved = true;
+    if (!drag.moved) return;
+    b.x = pt.x - drag.offX; b.y = pt.y - drag.offY; b.vx = b.vy = 0;
+    clampOrb(b);
+    // transient contact preview: leaving contact simply clears it (no event recorded)
+    var best = null, bestD = Infinity, ra = radiusOf(drag.id);
+    topLevel().forEach(function (id) {
+      if (id === drag.id) return;
+      var o = blobs[id], d = Math.hypot(o.x - b.x, o.y - b.y);
+      if (d < (ra + radiusOf(id)) * 0.85 && d < bestD) { best = id; bestD = d; }
+    });
+    drag.target = best;
+    drag.verdict = best ? (sameKind(drag.id, best) ? 'ok' : (sharedTags(drag.id, best).length ? 'ask' : 'no')) : null;
+    positionOrbs(); markClasses();
+  }
+  function onPointerUp(e) {
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    var d = drag; drag = null;
+    try { stage.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
+    if (!d.moved) { select(d.clickId); return; }
+    if (d.target && blobs[d.target] && blobs[d.target].parent === null) {
+      try { resolveDrop(d.id, d.target); } catch (err) { setStatus('Error: ' + err.message); }
+    } else setStatus('Moved "' + blobs[d.id].name + '".');
+    markClasses();
+  }
+  function onPointerCancel(e) {
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    drag = null; markClasses(); // cancelled silently
+  }
+
+  // ---------- buttons ----------
+  function onNew() {
+    var name = window.prompt('New blob name:', 'untitled');
+    if (name === null) return;
+    name = name.trim() || 'untitled';
+    var kind = window.prompt('Kind (image, audio, text):', 'text');
+    if (kind === null) return;
+    kind = kind.trim().toLowerCase();
+    if (KINDS.indexOf(kind) === -1) { setStatus('Unknown kind "' + kind + '", using text.'); kind = 'text'; }
+    var id = createFile(name, kind, 20000 + Math.floor(Math.random() * 2000000), []);
+    var b = blobs[id];
+    b.x = bounds.w * (0.3 + Math.random() * 0.4); b.y = bounds.h * (0.3 + Math.random() * 0.4);
+    clampOrb(b);
+    selected = id;
+    structureChanged();
+    setStatus('Created "' + b.name + '".');
+  }
+  function onSplit() {
+    try { var c = split(selected); setStatus('Split "' + blobs[c].name + '" out.'); }
+    catch (err) { setStatus(err.message); }
+  }
+  function onRename() {
+    if (!selected) { setStatus('Select an orb first.'); return; }
+    var n = window.prompt('Rename "' + blobs[selected].name + '" to:', blobs[selected].name);
+    if (n !== null && rename(selected, n)) setStatus('Renamed.');
+  }
+  function onTag() {
+    if (!selected) { setStatus('Select an orb first.'); return; }
+    var t = window.prompt('Add tag to "' + blobs[selected].name + '":', '');
+    if (t !== null && addTag(selected, t)) setStatus('Tagged.');
+  }
+  function snapshot() {
+    var out = {};
+    order.forEach(function (id) {
+      var b = blobs[id];
+      out[id] = { id: id, type: b.type, kind: kindOf(id), name: b.name, size: contentSize(id), mass: massOf(id), tags: b.tags.slice(),
+                  children: b.children.slice(), parent: b.parent, rings: b.rings, history: b.history.slice(),
+                  position: b.parent ? null : { x: Math.round(b.x), y: Math.round(b.y) } };
+    });
+    return { format: 'blobfs-orb', version: 2, savedAt: new Date().toISOString(), constantMass: BODY,
+             events: events.slice(), state: { blobs: out, topLevel: topLevel(), pending: pending.map(function (p) { return { a: p.a, b: p.b, source: p.source, shared: p.shared }; }),
+             refused: Object.keys(refused) } };
+  }
+  function onSave() {
+    var blob = new Blob([JSON.stringify(snapshot(), null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
-    var blob = new Blob([JSON.stringify({ blobs: blobs, proposals: proposals }, null, 2)], { type: 'application/json' });
-    a.href = URL.createObjectURL(blob);
-    a.download = 'demo.orb.json';
-    a.click();
-    setStatus('saved demo.orb.json');
-  });
+    a.href = url; a.download = 'demo.orb.json'; a.style.display = 'none';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    window.setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+    setStatus('Saved demo.orb.json (' + events.length + ' events).');
+  }
 
-  window.addEventListener('resize', function () { layout(); draw(); });
-  layout();
-  renderPanel();
-  draw();
-  setStatus('BlobFS 2D ready — ' + order.length + ' orbs');
+  // ---------- sample disk ----------
+  function sampleDisk() {
+    var covers = createDir('Covers', ['music', 'art']);
+    createFile('cover1', 'image', 450000, ['music', 'art'], covers);
+    createFile('cover2', 'image', 380000, ['music', 'art'], covers);
+    var sessions = createDir('Sessions', ['music', '2024']);
+    createFile('take1', 'audio', 900000, ['music', '2024'], sessions);
+    createFile('take2', 'audio', 1100000, ['music', '2024'], sessions);
+    createDir('Masters', ['music']);
+    createFile('photo1', 'image', 2700000, ['vacation', '2024']);
+    createFile('photo2', 'image', 2800000, ['vacation', '2024']);
+    createFile('song1', 'audio', 800000, ['berlin-set', 'demo']);
+    createFile('notes', 'text', 12000, ['work']);
+  }
+
+  function init() {
+    stage = document.getElementById('stage');
+    panel = document.getElementById('panel');
+    msgEl = document.getElementById('msg');
+    statusEl = document.getElementById('status');
+    try {
+      computeBounds();
+      sampleDisk();
+      initialLayout();
+      stage.addEventListener('pointerdown', onPointerDown);
+      stage.addEventListener('pointermove', onPointerMove);
+      stage.addEventListener('pointerup', onPointerUp);
+      stage.addEventListener('pointercancel', onPointerCancel);
+      document.getElementById('btnNew').addEventListener('click', onNew);
+      document.getElementById('btnSplit').addEventListener('click', onSplit);
+      document.getElementById('btnSave').addEventListener('click', onSave);
+      document.getElementById('btnRename').addEventListener('click', onRename);
+      document.getElementById('btnTag').addEventListener('click', onTag);
+      document.getElementById('pendingList').addEventListener('click', function (e) {
+        var acc = e.target.closest('[data-accept]'), ref = e.target.closest('[data-refuse]');
+        try {
+          if (acc) { acceptSuggestion(acc.getAttribute('data-accept')); setStatus('Accepted.'); }
+          if (ref) { keepApart(ref.getAttribute('data-refuse')); setStatus('Kept apart (refusal recorded).'); }
+        } catch (err) { setStatus('Error: ' + err.message); }
+      });
+      document.getElementById('inspector').addEventListener('click', function (e) {
+        var s = e.target.closest('[data-select]');
+        if (s) select(s.getAttribute('data-select'));
+      });
+      window.addEventListener('resize', onResize);
+      structureChanged();
+      setStatus('BlobFS 2D ready: ' + topLevel().length + ' orbs, ' + order.length + ' blobs.');
+      window.requestAnimationFrame(tick);
+    } catch (e) {
+      showError(e);
+    }
+    if (!msgEl.classList.contains('error')) checkEmpty();
+  }
+
+  // small read-only/test surface
+  window.BlobFS = {
+    blobs: blobs, events: events,
+    pending: function () { return pending.slice(); },
+    topLevel: topLevel, massOf: massOf, kindOf: kindOf, radiusOf: radiusOf,
+    byName: function (n) { for (var i = 0; i < order.length; i++) if (blobs[order[i]].name === n) return order[i]; return null; },
+    resolveDrop: function (a, b) { return resolveDrop(a, b); },
+    split: function (id) { return split(id); },
+    accept: acceptSuggestion, keepApart: keepApart, rename: rename, tag: addTag, select: select, snapshot: snapshot
+  };
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 })();
 </script>
 </body>

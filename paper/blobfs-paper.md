@@ -102,6 +102,12 @@ Practical steps: run a pilot with three people first. The study needs ethics app
 - The ACM DL sweep is now free (ACM went fully open access January 2026), but the IEEE Xplore full-text sweep still needs access or author PDFs.
 - 3D delivery (VR, haptics, light fields) is far future; the prototype is a browser page.
 
+### Future work: AI curation and gaze
+
+This is proposed future work, not a claim. An AI curator could learn from the event log BlobFS already keeps (merges, splits, refusals, renames, tags, unpacks) together with a local, on-device record of opens, plays and exports; the 2D prototype now keeps such a record for opens, plays and exports, but no model has been trained on it. The rule would mirror the physics rule: the AI may suggest merges, shown as the same amber Accept / Keep apart prompt, but never commit them. Small undoable actions (a tag, a rename, a new folder) might run automatically, but each must land in the history like any other event and carry an Undo that appends a reversing event rather than erasing anything.
+
+Gaze may later replace the mouse for deictic references, so that "merge this into that" resolves "this" and "that" to the orbs being looked at. Voice comes first: the 2D prototype has a typed and spoken command bar (Web Speech API, Chrome and Edge only) with fuzzy name matching that asks rather than guesses when a name is ambiguous. Eye tracking is not implemented or tested.
+
 ## 8. Conclusion
 
 BlobFS makes merge a storage operation: kind-typed fusion of distinct objects, stored with history, refusals recorded, a human as the one who commits. The format is real — two implementations agree, the tests pass, and the novelty claim survives a literature sweep when worded narrowly. What remains is the user study, the performance numbers, and the paywalled index check. The idea is that a disk should organize itself around what you do, and that nothing you merge should ever be gone for good.

@@ -80,6 +80,8 @@ The test suite covers the rules directly:
 - Diff: shows the move. Unmerge: frees the blob and leaves the commit in the log.
 - Cross-language: Python and JavaScript agree hash-for-hash on the same .orb.
 
+Browser page: 60 automated Playwright checks of blobfs-2d.html, run headless in Chromium and Firefox from a local file, passed in both with zero console errors. They cover rendering, the command bar, merge rules including directory union and its undo, kind gate, undo-as-event, local use-log events, zorb unpack, and .orb save/open round-trip with SHA-256 checks against an independent Python zipfile/hashlib reader.
+
 [TODO: total test count, per-row numbers, runtime, open time against event count.]
 
 ## 6. Evaluation: Planned User Study
@@ -95,7 +97,7 @@ Practical steps: run a pilot with three people first. The study needs ethics app
 ## 7. Limitations
 
 - No user study yet. The folder literature points the other way on effort, so the study is not optional.
-- The mass constant C is [TODO: not yet derived or measured].
+- The mass constant C is 1 MiB (1,048,576 bytes) in the browser page (`BODY = 1024 * 1024` in blobfs-2d.html, also written into every saved .orb header as `constantMass`). It is a chosen value, not derived or measured. The Python reference (orb.py) is not in the repository, so its value could not be checked against the JavaScript one.
 - The repulsion coefficient is tuned, not derived.
 - Performance measurements are [TODO: not yet taken].
 - The zip profile between Python's zipfile and JSZip has not been formally specified; the format is strict about what it reads and tolerant about what it writes, but this should be tightened.

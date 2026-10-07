@@ -4,7 +4,7 @@
 
 ## Abstract
 
-BlobFS is a file system where files are living blobs that attract, merge, and split. The contribution is narrow and specific: merge is a storage operation of the format itself, not a view in the interface. Two different objects fuse into a new container under kind-typed rules; the merge is stored with an append-only event log; a refused merge is recorded rather than erased; and the system may only propose while a person commits. The .orb format stores real payloads deduplicated by SHA-256 hash, and two independent implementations — Python and JavaScript — open the same file hash-for-hash. We do not claim BlobFS beats folders: the personal-file literature strongly favors browsing, and BlobFS builds nesting rather than removing it. We present the format, the merge rules, the test results, and a planned user study comparing BlobFS in 3D, BlobFS in 2D, and ordinary folders.
+BlobFS is a file system where files are living blobs that attract, merge, and split. The contribution is narrow and specific: merge is a storage operation of the format itself, not a view in the interface. Two different objects fuse into a new container under kind-typed rules; the merge is stored with an append-only event log; a refused merge is recorded rather than erased; and the system may only propose while a person commits. The .orb format stores real payloads deduplicated by SHA-256 hash. orb.py, a stdlib Python reference written to the shipped format, and the browser loader agree on all 22 blob and 20 object hashes of demo.orb, and files written by each open in the other. We do not claim BlobFS beats folders: the personal-file literature strongly favors browsing, and BlobFS builds nesting rather than removing it. We present the format, the merge rules, the test results, and a planned user study comparing BlobFS in 3D, BlobFS in 2D, and ordinary folders.
 
 ## 1. Introduction
 
@@ -50,7 +50,7 @@ Payloads are stored once under their SHA-256 hash in an objects/ directory. Iden
 
 Name collisions get a disambiguator: notes.txt and notes.txt become notes.txt and notes (2).txt, never a silent overwrite. A folder merged into another goes in as a sub-orb, not flattened. Undo is a new event that leaves the merge visible in the history — nothing vanishes.
 
-The format is implemented twice: orb.py as the reference, and a JavaScript port using JSZip for the browser. The cross-language test opens the same demo.orb in both and checks every hash. A merge saved from the browser opens cleanly in Python.
+The format is implemented twice: the browser page (blobfs-2d.html), which reads and writes the zip with its own inline reader and writer (no JSZip or other library), and orb.py, a stdlib-only Python reference (zipfile, hashlib, json) written afterwards to the format the page ships. The cross-language test (tests/test_crosslang.py) opens the committed demo.orb, saved by the page, in orb.py and in the page's own loader run headless in Chromium and Firefox. Both sides agree on all 22 blob hashes, all 20 object hashes, the 13 links and the 101-record count. A file written by orb.py opens in the page, and a file saved by the page opens and verifies in orb.py, with a random 70,001-byte payload compared byte for byte and a 50,000-byte file dropped onto the page compared by SHA-256.
 
 ## 4. Merge Rules
 
@@ -78,9 +78,9 @@ The test suite covers the rules directly:
 - Collisions: same-name files get disambiguators; nothing overwritten.
 - Nesting: a folder goes in as a sub-orb, not flattened.
 - Diff: shows the move. Unmerge: frees the blob and leaves the commit in the log.
-- Cross-language: Python and JavaScript agree hash-for-hash on the same .orb.
+- Cross-language: orb.py and the browser loader agree on all 22 blob and 20 object hashes of demo.orb, and files written by each open in the other (tests/test_crosslang.py: 12 tests, 9 pure-Python and 3 cross-language, each cross-language test run in Chromium and Firefox).
 
-Browser page: 60 automated Playwright checks of blobfs-2d.html, run headless in Chromium and Firefox from a local file, passed in both with zero console errors. They cover rendering, the command bar, merge rules including directory union and its undo, kind gate, undo-as-event, local use-log events, zorb unpack, and .orb save/open round-trip with SHA-256 checks against an independent Python zipfile/hashlib reader.
+Browser page: 73 automated Playwright checks of blobfs-2d.html, run headless in Chromium and Firefox from a local file, passed in both with zero console errors. They cover rendering, the command bar, merge rules including directory union and its undo, kind gate, undo-as-event, local use-log events, zorb unpack, .orb save/open round-trip with SHA-256 checks in Python, the undo stack and pending suggestions surviving save and reopen (undo after reopen restores both directories; a reopened suggestion can be accepted or refused), dropped files stored and reopened byte-exact, and the refusal of files of 4 GiB or more.
 
 [TODO: total test count, per-row numbers, runtime, open time against event count.]
 
@@ -97,10 +97,11 @@ Practical steps: run a pilot with three people first. The study needs ethics app
 ## 7. Limitations
 
 - No user study yet. The folder literature points the other way on effort, so the study is not optional.
-- The mass constant C is 1 MiB (1,048,576 bytes) in the browser page (`BODY = 1024 * 1024` in blobfs-2d.html, also written into every saved .orb header as `constantMass`). It is a chosen value, not derived or measured. The Python reference (orb.py) is not in the repository, so its value could not be checked against the JavaScript one.
+- The mass constant C is 1 MiB (1,048,576 bytes) in the browser page (`BODY = 1024 * 1024` in blobfs-2d.html, also written into every saved .orb header as `constantMass`). It is a chosen value, not derived or measured. The Python reference orb.py uses the same value (`C = 1048576`) and refuses a file whose header says otherwise.
 - The repulsion coefficient is tuned, not derived.
 - Performance measurements are [TODO: not yet taken].
-- The zip profile between Python's zipfile and JSZip has not been formally specified; the format is strict about what it reads and tolerant about what it writes, but this should be tightened.
+- The zip profile has not been formally specified. The page writes uncompressed (STORE) zip32 archives with its own inline writer and reads STORE and DEFLATE (DEFLATE needs the browser's DecompressionStream); orb.py writes STORE zip32 and reads what Python's zipfile reads. The format is strict about what it reads and tolerant about what it writes, but this should be tightened.
+- There is no ZIP64: a single file of 4 GiB or more is refused, and so is a save that would exceed 4 GiB in total or 65,535 entries. Files of the built-in sample disk are synthetic placeholders, marked `"payload":"placeholder"` in the saved records; imported, added and dropped files are stored as their real bytes.
 - The ACM DL sweep is now free (ACM went fully open access January 2026), but the IEEE Xplore full-text sweep still needs access or author PDFs.
 - 3D delivery (VR, haptics, light fields) is far future; the prototype is a browser page.
 

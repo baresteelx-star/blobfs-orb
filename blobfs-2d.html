@@ -12,12 +12,17 @@
            background-color: #0d1117;
            background-image: linear-gradient(#161b22 1px, transparent 1px), linear-gradient(90deg, #161b22 1px, transparent 1px);
            background-size: 60px 60px; }
+  #world { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; transition: transform 0.25s ease; }
   .orb { position: absolute; left: 0; top: 0; border-radius: 50%; cursor: grab; border: 2px solid #30363d; touch-action: none; }
   .orb.dragging { cursor: grabbing; z-index: 5; }
   .orb.kind-image { background: radial-gradient(circle at 35% 30%, #2b4a6b, #16263a); }
   .orb.kind-audio { background: radial-gradient(circle at 35% 30%, #4b2f6b, #24173a); }
   .orb.kind-text  { background: radial-gradient(circle at 35% 30%, #2f5b3a, #16301e); }
+  .orb.kind-zip   { background: radial-gradient(circle at 35% 30%, #bef264, #65a30d 55%, #365314); border-color: #84cc16; }
+  .orb.kind-video { background: radial-gradient(circle at 35% 30%, #7a2f45, #3a1622); }
+  .orb.kind-other { background: radial-gradient(circle at 35% 30%, #6b5a2f, #33291a); }
   .orb.kind-empty, .orb.kind-mixed { background: radial-gradient(circle at 35% 30%, #3a3f47, #1c2128); }
+  .orb .zipper { position: absolute; left: 50%; top: 12%; bottom: 12%; width: 0; border-left: 3px dotted rgba(26,46,5,0.75); transform: translateX(-50%); pointer-events: none; }
   .orb.selected { border-color: #58a6ff; }
   .orb .glow { position: absolute; inset: -8px; border-radius: 50%; pointer-events: none; display: none;
                box-shadow: 0 0 18px 6px rgba(210,153,34,0.75); border: 2px solid #d29922; }
@@ -30,6 +35,7 @@
   .orb .label small { display: block; font-weight: 400; font-size: 10px; color: #8b949e; }
   .sub { position: absolute; border-radius: 50%; border: 1px solid rgba(230,237,243,0.35); cursor: pointer; overflow: visible; }
   .sub.kind-image { background: #2b4a6b; } .sub.kind-audio { background: #4b2f6b; } .sub.kind-text { background: #2f5b3a; }
+  .sub.kind-zip { background: #84cc16; } .sub.kind-video { background: #7a2f45; } .sub.kind-other { background: #6b5a2f; }
   .sub.kind-empty, .sub.kind-mixed { background: #2d333b; }
   .sub.selected { border: 2px solid #58a6ff; }
   .sub .slabel { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); font-size: 9px; white-space: nowrap; pointer-events: none; color: #e6edf3; text-shadow: 0 1px 2px #000; }
@@ -38,13 +44,27 @@
   #status { position: absolute; bottom: 8px; left: 8px; background: rgba(22,27,34,0.9); border: 1px solid #30363d; border-radius: 6px; padding: 4px 8px; font-size: 11px; color: #8b949e; max-width: calc(100% - 16px); pointer-events: none; }
   #panel { position: fixed; top: 12px; right: 12px; width: 300px; bottom: 12px; background: rgba(22,27,34,0.97); border: 1px solid #30363d; border-radius: 8px; padding: 12px; font-size: 12px; overflow-y: auto; }
   @media (max-width: 700px) { #panel { width: 220px; padding: 8px; } }
-  #panel h2 { font-size: 15px; margin-bottom: 8px; color: #58a6ff; }
+  #panel h2 { font-size: 15px; margin: 10px 0 8px; color: #58a6ff; }
   #panel h3 { font-size: 12px; margin: 10px 0 4px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.04em; }
+  #cmdbar { display: flex; gap: 5px; }
+  #cmd { flex: 1; min-width: 0; background: #0d1117; color: #e6edf3; border: 1px solid #30363d; border-radius: 6px; padding: 5px 7px; font-size: 12px; }
+  #cmd:focus { outline: none; border-color: #58a6ff; }
+  #btnMic { width: 34px; padding: 4px 0; }
+  #btnMic.listening { background: #da3633; border-color: #f85149; }
+  #btnMic:disabled { opacity: 0.45; cursor: not-allowed; }
+  #reply { min-height: 16px; margin-top: 4px; font-size: 11px; color: #8b949e; line-height: 1.35; word-break: break-word; }
+  #reply.ok { color: #7ee787; } #reply.ask { color: #d29922; } #reply.err { color: #f85149; }
+  #helpBox { margin-top: 6px; border: 1px solid #30363d; border-radius: 6px; padding: 6px 8px; font-size: 11px; line-height: 1.45; }
+  #helpBox ul { list-style: none; } #helpBox code { color: #d2a8ff; font-family: inherit; font-weight: 600; }
   .row { display: flex; gap: 5px; margin-bottom: 6px; flex-wrap: wrap; }
   button { background: #21262d; border: 1px solid #30363d; color: #e6edf3; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 12px; }
   button:hover { background: #30363d; }
   button.primary { background: #1f6feb; border-color: #1f6feb; }
   button.primary:hover { background: #388bfd; }
+  button.lime { background: #3f6212; border-color: #84cc16; }
+  button.lime:hover { background: #4d7c0f; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(88,166,255,0.9); } 70% { box-shadow: 0 0 0 10px rgba(88,166,255,0); } 100% { box-shadow: 0 0 0 0 rgba(88,166,255,0); } }
+  button.pulse { animation: pulse 0.9s ease-out infinite; border-color: #58a6ff; background: #1f3a5f; }
   .suggestion { background: rgba(210,153,34,0.15); border: 1px solid #d29922; border-radius: 6px; padding: 6px; margin-bottom: 6px; }
   .suggestion .reason { color: #d29922; font-size: 11px; margin-bottom: 5px; }
   .muted { color: #8b949e; }
@@ -52,18 +72,32 @@
   #inspector dt { color: #8b949e; }
   #inspector dd { word-break: break-word; }
   .child-link { color: #58a6ff; cursor: pointer; text-decoration: underline; margin-right: 6px; }
+  .zlist { list-style: none; margin: 6px 0; border: 1px solid #365314; border-radius: 6px; padding: 4px 6px; }
+  .zlist li { display: flex; gap: 6px; align-items: center; padding: 1px 0; }
+  .zlist li .zs { margin-left: auto; color: #8b949e; }
+  #colorKey { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 10px; }
+  #colorKey li { display: flex; align-items: center; gap: 4px; }
+  .sw { display: inline-block; width: 11px; height: 11px; border-radius: 50%; border: 1px solid rgba(230,237,243,0.35); flex: none; }
   #history { list-style: none; max-height: 180px; overflow-y: auto; font-size: 11px; border: 1px solid #30363d; border-radius: 6px; padding: 4px 6px; }
   #history li { padding: 2px 0; border-bottom: 1px solid #21262d; }
   #history li .t { color: #d2a8ff; font-weight: 600; margin-right: 4px; }
   .hint { color: #8b949e; font-size: 11px; margin-top: 8px; line-height: 1.4; }
+  .hidden-input { display: none; }
 </style>
 </head>
 <body>
 <div id="stage">
+  <div id="world"></div>
   <div id="msg"></div>
   <div id="status">loading…</div>
 </div>
 <div id="panel">
+  <div id="cmdbar">
+    <input id="cmd" type="text" autocomplete="off" spellcheck="false" placeholder="Type or say a command (try: what can I say?)" aria-label="Command">
+    <span id="micWrap"><button id="btnMic" type="button" aria-label="Speak a command">🎤</button></span>
+  </div>
+  <div id="reply" aria-live="polite"></div>
+  <div id="helpBox" hidden></div>
   <h2>BlobFS 2D</h2>
   <div class="row">
     <button class="primary" id="btnNew">New Blob</button>
@@ -73,14 +107,26 @@
   <div class="row">
     <button id="btnRename">Rename</button>
     <button id="btnTag">Tag</button>
+    <button id="btnUndo">Undo</button>
+    <button id="btnExport">Export history</button>
   </div>
+  <div class="row">
+    <button id="btnImportFolder">Import folder</button>
+    <button id="btnAddFiles">Add files</button>
+    <button id="btnOpenOrb">Open .orb</button>
+  </div>
+  <input class="hidden-input" id="inFolder" type="file" webkitdirectory multiple>
+  <input class="hidden-input" id="inFiles" type="file" multiple>
+  <input class="hidden-input" id="inOrb" type="file" accept=".orb,.zip,.json,application/zip,application/json">
+  <h3>Colour key</h3>
+  <ul id="colorKey"></ul>
   <h3>Suggestions</h3>
   <div id="pendingList"><div class="muted">none</div></div>
   <h3>Selected</h3>
   <div id="inspector"><div class="muted">Click an orb to inspect it.</div></div>
   <h3>History</h3>
   <ul id="history"></ul>
-  <div class="hint">Drag an orb onto another and release to merge. Same kind merges on drop. Different kinds need a shared tag and your confirmation (amber glow, Accept / Keep apart). Without a shared tag they bounce apart. Pull apart before release to cancel. Physics may propose, never commit.</div>
+  <div class="hint">Drag an orb onto another and release to merge. Same kind merges on drop. Different kinds need a shared tag and your confirmation (amber glow, Accept / Keep apart). Without a shared tag they bounce apart. Pull apart before release to cancel. Physics may propose, never commit. The lime orb is a zorb (a zip): open it to see its contents, unpack copies them into a new folder orb. Save Orb writes a real .orb zip (demo.orb.zip: MAGIC, records.jsonl, each payload stored once under objects/ named by its SHA-256), which Open .orb reloads. Export history downloads the event log as readable text (blobfs-history.txt). The .orb also keeps the undo history and pending suggestions. Files you add, import or drop onto the stage are stored as their real bytes (sample-disk files have none and are marked as placeholders). Files of 4 GiB or more are refused (zip32 limit). Opens, plays and exports are logged as local events; nothing is sent anywhere.</div>
 </div>
 <script>
 (function () {
@@ -88,26 +134,40 @@
 
   // ---------- model ----------
   var BODY = 1024 * 1024; // constant mass added to every blob (1 MB)
-  var KINDS = ['image', 'audio', 'text'];
+  var KINDS = ['image', 'audio', 'text', 'zip', 'video', 'other'];
+  // colour per kind; 'dir' is the colour of empty or mixed folders (single-kind folders take their contents' colour)
+  var KIND_COLORS = { dir: '#3a3f47', image: '#2b4a6b', audio: '#4b2f6b', text: '#2f5b3a', zip: '#84cc16', video: '#7a2f45', other: '#6b5a2f' };
+  var KIND_LABELS = { dir: 'dir (empty / mixed)', zip: 'zip (zorb)' };
+  var EXT_KINDS = {
+    image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'heic', 'tif', 'tiff', 'avif'],
+    audio: ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac', 'aif', 'aiff', 'opus'],
+    text: ['txt', 'md', 'json', 'csv', 'html', 'htm', 'js', 'css', 'xml', 'yml', 'yaml', 'py', 'tex', 'rtf', 'log', 'ts'],
+    zip: ['zip'],
+    video: ['mp4', 'mov', 'webm', 'mkv', 'avi']
+  };
 
   var blobs = {};          // id -> blob
   var order = [];          // creation order of ids
   var events = [];         // append-only event log
+  var undoStack = [];      // undoable actions; undo appends an 'undo' event, it never deletes history
   var pending = [];        // [{ key, a, b, source, shared, crossKind }]
   var refused = {};        // pairKey -> true (physics will not re-suggest)
   var nextId = 1, nextSeq = 1;
   var selected = null;     // selected blob id (top-level or nested)
 
-  var stage, panel, msgEl, statusEl;
+  var stage, world, panel, msgEl, statusEl, replyEl, helpEl, cmdEl;
   var bounds = { w: 400, h: 300 };
   var scaleK = 20;
+  var view = { z: 1, tx: 0, ty: 0 };
   var drag = null;
   var orbEls = {};         // top-level id -> element
+  var audioCtx = null;
 
+  // HTML escaping; entity text is assembled at runtime so no literal entity appears in this file
+  var AMP = String.fromCharCode(38);
+  var ENT = { '&': 'amp', '<': 'lt', '>': 'gt', '"': 'quot', "'": '#39' };
   function esc(s) {
-    return String(s).replace(/[&<>"']/g, function (c) {
-      return '&' + { '&': 'amp', '<': 'lt', '>': 'gt', '"': 'quot', "'": '#39' }[c] + ';';
-    });
+    return String(s).replace(/[&<>"']/g, function (c) { return AMP + ENT[c] + ';'; });
   }
   function fmtBytes(n) {
     if (n >= 1e6) return (n / 1e6).toFixed(2) + ' MB';
@@ -115,6 +175,19 @@
     return n + ' B';
   }
   function pairKey(a, b) { return a < b ? a + '|' + b : b + '|' + a; }
+  function kindFromName(name) {
+    var m = /\.([A-Za-z0-9]+)$/.exec(String(name));
+    if (!m) return 'other';
+    var e = m[1].toLowerCase();
+    for (var k in EXT_KINDS) if (EXT_KINDS[k].indexOf(e) !== -1) return k;
+    return 'other';
+  }
+  function extOf(name) { var m = /(\.[A-Za-z0-9]{1,5})$/.exec(String(name)); return m ? m[1] : ''; }
+  function stripExt(name) { var e = extOf(name); return e ? String(name).slice(0, -e.length) : String(name); }
+  function swatch(kind) {
+    var c = KIND_COLORS[kind === 'empty' || kind === 'mixed' ? 'dir' : kind] || KIND_COLORS.other;
+    return '<span class="sw" style="background:' + c + '"></span>';
+  }
 
   function logEvent(type, data, text, ids) {
     var ev = { seq: nextSeq++, time: new Date().toISOString(), type: type, text: text };
@@ -123,25 +196,41 @@
     (ids || []).forEach(function (id) { if (blobs[id]) blobs[id].history.push(ev.seq); });
     return ev;
   }
+  // local use log: opens, plays and exports become ordinary events (kept on this machine, never sent anywhere);
+  // they change no state, so there is nothing to undo; a repeated open of the same orb is not logged twice in a row
+  var lastOpen = null;
+  function noteUsage(action, id, extra) {
+    if (action === 'open') { if (lastOpen === id) return; lastOpen = id; } else lastOpen = null;
+    var data = { local: true, via: extra || null }, who = '';
+    if (id && blobs[id]) { data.id = id; who = ' "' + blobs[id].name + '"'; }
+    logEvent(action, data, action + who + (extra ? ' (' + extra + ')' : ''), id ? [id] : []);
+    renderHistory();
+  }
 
   function makeBlob(type, name, kind, size, tags) {
     var id = 'b' + (nextId++);
     blobs[id] = { id: id, type: type, name: name, kind: type === 'file' ? kind : null, size: type === 'file' ? size : 0,
                   tags: (tags || []).slice(), children: [], parent: null, history: [], rings: 0, autoName: false,
-                  x: 0, y: 0, vx: 0, vy: 0 };
+                  entries: null, gone: false, file: null, placeholder: false, src: null, zipRef: null, x: 0, y: 0, vx: 0, vy: 0 };
+    if (type === 'file' && kind === 'zip') blobs[id].entries = [];
     order.push(id);
     return id;
   }
-  function createFile(name, kind, size, tags, parentId) {
+  function createFile(name, kind, size, tags, parentId, entries) {
     var id = makeBlob('file', name, kind, size, tags);
+    if (entries) blobs[id].entries = entries.map(function (e) { return { name: e.name, kind: e.kind, size: e.size }; });
     if (parentId) attach(parentId, id);
-    logEvent('create', { id: id, blobType: 'file', kind: kind, name: blobs[id].name, size: size, parent: parentId || null },
-             'created file "' + blobs[id].name + '" (' + kind + ')' + (parentId ? ' in "' + blobs[parentId].name + '"' : ''), [id]);
+    logEvent('create', { id: id, blobType: 'file', kind: kind, name: blobs[id].name, size: size, parent: parentId || null,
+                         entries: entries ? entries.length : undefined },
+             'created file "' + blobs[id].name + '" (' + kind + (entries ? ', ' + entries.length + ' entries' : '') + ')' +
+             (parentId ? ' in "' + blobs[parentId].name + '"' : ''), [id]);
     return id;
   }
-  function createDir(name, tags) {
+  function createDir(name, tags, parentId) {
     var id = makeBlob('dir', name, null, 0, tags);
-    logEvent('create', { id: id, blobType: 'dir', name: name }, 'created directory "' + name + '"', [id]);
+    if (parentId) attach(parentId, id);
+    logEvent('create', { id: id, blobType: 'dir', name: blobs[id].name, parent: parentId || null },
+             'created directory "' + blobs[id].name + '"' + (parentId ? ' in "' + blobs[parentId].name + '"' : ''), [id]);
     return id;
   }
 
@@ -174,16 +263,26 @@
     var tb = blobs[b].tags;
     return blobs[a].tags.filter(function (t) { return tb.indexOf(t) !== -1; });
   }
-  function topLevel() { return order.filter(function (id) { return blobs[id].parent === null; }); }
+  function topLevel() { return order.filter(function (id) { return blobs[id].parent === null && !blobs[id].gone; }); }
   function topAncestor(id) { while (blobs[id].parent) id = blobs[id].parent; return id; }
+  function isLive(id) { return !!blobs[id] && !blobs[topAncestor(id)].gone; }
+  function isZorb(id) { var b = blobs[id]; return !!b && b.type === 'file' && b.kind === 'zip'; }
 
-  function uniqueName(parentId, name, exceptId) {
-    var taken = {};
-    blobs[parentId].children.forEach(function (c) { if (c !== exceptId) taken[blobs[c].name] = 1; });
+  function pickName(taken, name) {
     if (!taken[name]) return name;
     var m = /^(.*?)(\.[A-Za-z0-9]+)?$/.exec(name);
     var base = m[1], ext = m[2] || '';
     for (var i = 2; ; i++) { var n = base + ' (' + i + ')' + ext; if (!taken[n]) return n; }
+  }
+  function uniqueName(parentId, name, exceptId) {
+    var taken = {};
+    blobs[parentId].children.forEach(function (c) { if (c !== exceptId) taken[blobs[c].name] = 1; });
+    return pickName(taken, name);
+  }
+  function topUniqueName(name) {
+    var taken = {};
+    topLevel().forEach(function (id) { taken[blobs[id].name] = 1; });
+    return pickName(taken, name);
   }
   function attach(parentId, childId) {
     var c = blobs[childId], old = c.name;
@@ -191,6 +290,13 @@
     c.parent = parentId;
     blobs[parentId].children.push(childId);
     return old !== c.name ? { from: old, to: c.name } : null;
+  }
+  function placeNear(b, refX, refY) {
+    var ang = Math.random() * Math.PI * 2, d = 60 + Math.random() * 60;
+    b.x = (refX === undefined ? bounds.w * (0.3 + Math.random() * 0.4) : refX + Math.cos(ang) * d);
+    b.y = (refY === undefined ? bounds.h * (0.3 + Math.random() * 0.4) : refY + Math.sin(ang) * d);
+    b.vx = b.vy = 0;
+    clampOrb(b);
   }
 
   // ---------- operations ----------
@@ -203,13 +309,24 @@
     var A = blobs[a], B = blobs[b];
     if (!A || !B || a === b) throw new Error('bad merge');
     if (A.parent || B.parent) throw new Error('only top-level orbs merge');
-    var result, rule, renames = [], nameA = A.name, nameB = B.name;
-    var px = B.x, py = B.y;
+    var result, rule, renames = [], nameA = A.name, nameB = B.name, moved = null;
+    var px = B.x, py = B.y, kinds = [kindOf(a), kindOf(b)];
     if (A.type === 'dir' && B.type === 'dir') {
+      // dir + dir = ONE directory holding all children of both; clashes get 'name (2)';
+      // child folders move across whole, as sub-orbs (nested folders are never flattened)
       rule = 'dir+dir';
       result = makeBlob('dir', B.name + ' + ' + A.name, null, 0, unionTags(A.tags, B.tags));
       blobs[result].autoName = true;
-      renames.push(attach(result, b)); renames.push(attach(result, a)); // folders stay sub-orbs, never flattened
+      blobs[result].rings = Math.max(A.rings, B.rings);
+      moved = [];
+      [b, a].forEach(function (srcId) {
+        blobs[srcId].children.slice().forEach(function (c) {
+          moved.push({ child: c, from: srcId, name: blobs[c].name });
+          renames.push(attach(result, c));
+        });
+        blobs[srcId].children = [];
+        blobs[srcId].gone = true; // absorbed into the merged directory; kept for history and undo
+      });
     } else if (A.type === 'file' && B.type === 'file') {
       rule = 'file+file';
       result = makeBlob('dir', B.name + ' + ' + A.name, null, 0, unionTags(A.tags, B.tags));
@@ -226,11 +343,13 @@
     R.rings += 1;
     renames = renames.filter(Boolean);
     removePendingFor([a, b]);
-    logEvent('merge', { a: a, b: b, result: result, rule: rule, confirmedBy: confirmedBy, kinds: [kindOf(a), kindOf(b)],
-                        resultMass: massOf(result), renamed: renames },
+    var ev = logEvent('merge', { a: a, b: b, result: result, rule: rule, confirmedBy: confirmedBy, kinds: kinds,
+                        resultMass: massOf(result), renamed: renames, absorbed: moved ? [a, b] : undefined },
              'merged "' + nameA + '" + "' + nameB + '" → "' + R.name + '" (' + rule + ', by ' + confirmedBy + ')' +
              (renames.length ? '; renamed ' + renames.map(function (r) { return '"' + r.from + '"→"' + r.to + '"'; }).join(', ') : ''),
              [a, b, result].filter(function (x, i, arr) { return arr.indexOf(x) === i; }));
+    undoStack.push({ op: 'merge', seq: ev.seq, rule: rule, a: a, b: b, result: result, nameA: nameA, nameB: nameB, moved: moved,
+                     ax: A.x, ay: A.y, bx: px, by: py });
     selected = result;
     clampOrb(R);
     structureChanged();
@@ -248,6 +367,7 @@
     var P = blobs[parentId], C = blobs[childId];
     var before = massOf(parentId), cm = massOf(childId);
     var anchor = blobs[topAncestor(parentId)];
+    var index = P.children.indexOf(childId);
     P.children = P.children.filter(function (x) { return x !== childId; });
     C.parent = null;
     var after = massOf(parentId);
@@ -255,21 +375,32 @@
     var ang = Math.random() * Math.PI * 2, dist = radiusOf(anchor.id) + radiusOf(childId) + 24;
     C.x = anchor.x + Math.cos(ang) * dist; C.y = anchor.y + Math.sin(ang) * dist; C.vx = C.vy = 0;
     clampOrb(C);
-    logEvent('split', { parent: parentId, child: childId, childMass: cm, parentMassBefore: before, parentMassAfter: after },
+    var ev = logEvent('split', { parent: parentId, child: childId, childMass: cm, parentMassBefore: before, parentMassAfter: after },
              'split "' + C.name + '" out of "' + P.name + '" (parent lost ' + fmtBytes(cm) + ')', [parentId, childId]);
+    undoStack.push({ op: 'split', seq: ev.seq, parent: parentId, child: childId, index: index });
     selected = childId;
     structureChanged();
     return childId;
   }
 
+  // a renamed file keeps its kind and its extension (typing "drums" for "stems.zip" gives "drums.zip")
+  function keepExt(oldName, newName) {
+    var ext = extOf(oldName);
+    if (!ext) return newName;
+    if (newName.toLowerCase().slice(-ext.length) === ext.toLowerCase()) return newName;
+    return newName + ext;
+  }
   function rename(id, name) {
     var b = blobs[id];
     name = String(name || '').trim();
-    if (!b || !name || name === b.name) return false;
+    if (!b || !name) return false;
+    if (b.type === 'file') name = keepExt(b.name, name);
+    if (name === b.name) return false;
     var old = b.name;
     b.name = b.parent ? uniqueName(b.parent, name, id) : name;
     b.autoName = false;
-    logEvent('rename', { id: id, from: old, to: b.name }, 'renamed "' + old + '" → "' + b.name + '"', [id]);
+    var ev = logEvent('rename', { id: id, from: old, to: b.name, kind: kindOf(id) }, 'renamed "' + old + '" → "' + b.name + '"', [id]);
+    undoStack.push({ op: 'rename', seq: ev.seq, id: id, from: old, to: b.name });
     structureChanged();
     return true;
   }
@@ -278,9 +409,140 @@
     tag = String(tag || '').trim();
     if (!b || !tag || b.tags.indexOf(tag) !== -1) return false;
     b.tags.push(tag);
-    logEvent('tag', { id: id, tag: tag }, 'tagged "' + b.name + '" with "' + tag + '"', [id]);
+    var ev = logEvent('tag', { id: id, tag: tag }, 'tagged "' + b.name + '" with "' + tag + '"', [id]);
+    undoStack.push({ op: 'tag', seq: ev.seq, id: id, tag: tag });
     structureChanged();
     return true;
+  }
+  function newFolder(name) {
+    name = topUniqueName(String(name || '').trim() || 'New folder');
+    var id = makeBlob('dir', name, null, 0, []);
+    placeNear(blobs[id]);
+    var ev = logEvent('create', { id: id, blobType: 'dir', name: name }, 'created directory "' + name + '"', [id]);
+    undoStack.push({ op: 'create', seq: ev.seq, ids: [id], what: 'folder "' + name + '"' });
+    selected = id;
+    structureChanged();
+    return id;
+  }
+
+  // copy a zorb's entries into a NEW folder orb; the zorb itself is left exactly as it was
+  function unpack(id) {
+    var Z = blobs[id];
+    if (!isZorb(id)) throw new Error('"' + (Z ? Z.name : id) + '" is not a zip');
+    var entries = Z.entries || [];
+    if (!entries.length) throw new Error('"' + Z.name + '" has no listed contents to unpack');
+    var folderName = topUniqueName(stripExt(Z.name) || 'unpacked');
+    var dir = makeBlob('dir', folderName, null, 0, Z.tags);
+    var renames = [], fileIds = [];
+    entries.forEach(function (e) {
+      var base = String(e.name).split('/').pop() || 'file';
+      var fid = makeBlob('file', base, e.kind || kindFromName(base), e.size, []);
+      blobs[fid].src = (Z.src || Z.name) + ':' + e.name;
+      if (Z.file && !Z.placeholder) blobs[fid].zipRef = { blob: Z.file, entry: e.name };
+      var r = attach(dir, fid);
+      if (r) renames.push(r);
+      fileIds.push(fid);
+    });
+    var anchor = blobs[topAncestor(id)], D = blobs[dir];
+    var ang = Math.random() * Math.PI * 2, dist = radiusOf(anchor.id) + radiusOf(dir) + 30;
+    D.x = anchor.x + Math.cos(ang) * dist; D.y = anchor.y + Math.sin(ang) * dist; D.vx = D.vy = 0;
+    clampOrb(D);
+    var total = fileIds.reduce(function (s, f) { return s + blobs[f].size; }, 0);
+    var ev = logEvent('unpack', { zip: id, folder: dir, files: fileIds, sizes: fileIds.map(function (f) { return blobs[f].size; }), renamed: renames },
+             'unpacked "' + Z.name + '" into new folder "' + folderName + '" (' + fileIds.length + ' files, ' + fmtBytes(total) + ')' +
+             (renames.length ? '; renamed ' + renames.map(function (r) { return '"' + r.from + '"→"' + r.to + '"'; }).join(', ') : '') + '; zip unchanged',
+             [id, dir].concat(fileIds));
+    undoStack.push({ op: 'create', seq: ev.seq, ids: [dir], what: 'folder "' + folderName + '" from unpack' });
+    selected = dir;
+    structureChanged();
+    return dir;
+  }
+
+  // ---------- undo: appends an event, never deletes history ----------
+  function undo() {
+    var rec = undoStack[undoStack.length - 1];
+    if (!rec) return { ok: false, msg: 'Nothing to undo.' };
+    undoStack.pop();
+    var text, ids = [], problem = null;
+    if (rec.op === 'merge' && rec.rule === 'dir+dir') {
+      var RD = blobs[rec.result];
+      if (RD.gone || RD.parent !== null) problem = 'the merged directory has moved since';
+      else if (RD.children.length !== rec.moved.length || rec.moved.some(function (mv) { return blobs[mv.child].parent !== rec.result; })) problem = 'its contents have changed since';
+      if (!problem) {
+        // hand every child back to the directory it came from, under its original name and order
+        rec.moved.forEach(function (mv) {
+          var C = blobs[mv.child];
+          C.parent = mv.from; C.name = mv.name;
+          blobs[mv.from].children.push(mv.child);
+        });
+        RD.children = [];
+        RD.gone = true;
+        var DA = blobs[rec.a], DB = blobs[rec.b], off = radiusOf(rec.a) + radiusOf(rec.b) + 14;
+        DA.gone = false; DB.gone = false;
+        DB.x = RD.x + off / 2; DB.y = RD.y; DA.x = RD.x - off / 2; DA.y = RD.y;
+        DA.vx = DA.vy = DB.vx = DB.vy = 0;
+        clampOrb(DA); clampOrb(DB);
+        text = 'unmerged "' + rec.nameA + '" and "' + rec.nameB + '": both directories restored with their own children (undo of #' + rec.seq + ')';
+        ids = [rec.a, rec.b, rec.result];
+        selected = null;
+      }
+    } else if (rec.op === 'merge') {
+      var R = blobs[rec.result], A = blobs[rec.a], B = blobs[rec.b];
+      var created = rec.rule !== 'file+dir';
+      var moved = created ? [rec.a, rec.b] : [A.type === 'file' ? rec.a : rec.b];
+      if (R.gone || R.parent !== null) problem = 'the merged orb has moved since';
+      moved.forEach(function (m) { if (blobs[m].parent !== rec.result) problem = 'its parts have changed since'; });
+      if (!problem) {
+        R.children = R.children.filter(function (c) { return moved.indexOf(c) === -1; });
+        A.name = rec.nameA; B.name = rec.nameB;
+        moved.forEach(function (m, i) {
+          var M = blobs[m], off = radiusOf(rec.result) + radiusOf(m) + 12;
+          M.parent = null;
+          M.x = R.x + (i === 0 ? -off : off); M.y = R.y + (created ? 0 : off * 0.4); M.vx = M.vy = 0;
+          clampOrb(M);
+        });
+        R.rings = Math.max(0, R.rings - 1);
+        if (created) R.gone = true;
+        text = 'unmerged "' + rec.nameA + '" and "' + rec.nameB + '" (undo of #' + rec.seq + ')';
+        ids = [rec.a, rec.b, rec.result];
+        selected = null;
+      }
+    } else if (rec.op === 'split') {
+      var P = blobs[rec.parent], C = blobs[rec.child];
+      if (C.parent !== null || C.gone || !isLive(rec.parent)) problem = 'the split-out orb has changed since';
+      else {
+        C.name = uniqueName(rec.parent, C.name, rec.child);
+        P.children.splice(Math.min(rec.index, P.children.length), 0, rec.child);
+        C.parent = rec.parent;
+        text = 'put "' + C.name + '" back into "' + P.name + '" (undo of #' + rec.seq + ')';
+        ids = [rec.parent, rec.child];
+        selected = topAncestor(rec.parent);
+      }
+    } else if (rec.op === 'rename') {
+      var N = blobs[rec.id];
+      if (N.name !== rec.to) problem = 'it has been renamed again since';
+      else { N.name = rec.from; text = 'renamed "' + rec.to + '" back to "' + rec.from + '" (undo of #' + rec.seq + ')'; ids = [rec.id]; }
+    } else if (rec.op === 'tag') {
+      var T = blobs[rec.id], ti = T.tags.indexOf(rec.tag);
+      if (ti === -1) problem = 'the tag is already gone';
+      else { T.tags.splice(ti, 1); text = 'removed tag "' + rec.tag + '" from "' + T.name + '" (undo of #' + rec.seq + ')'; ids = [rec.id]; }
+    } else if (rec.op === 'create') {
+      rec.ids.forEach(function (c) { if (blobs[c].parent !== null || blobs[c].gone) problem = 'it has been merged or moved since'; });
+      if (!problem) {
+        rec.ids.forEach(function (c) { blobs[c].gone = true; });
+        text = 'removed ' + rec.what + ' from the stage (undo of #' + rec.seq + '; kept in history)';
+        ids = rec.ids.slice();
+      }
+    } else if (rec.op === 'refuse') {
+      delete refused[rec.key];
+      text = 'withdrew the refusal of "' + blobs[rec.a].name + '" + "' + blobs[rec.b].name + '" (undo of #' + rec.seq + '; may be suggested again)';
+      ids = [rec.a, rec.b];
+    }
+    if (problem) return { ok: false, msg: 'Cannot undo #' + rec.seq + ' (' + rec.op + '): ' + problem + '.' };
+    logEvent('undo', { undoes: rec.seq, action: rec.op }, text, ids);
+    if (selected && !isLive(selected)) selected = null;
+    structureChanged();
+    return { ok: true, msg: 'Undid #' + rec.seq + ': ' + text.replace(/ \(undo of.*$/, '') + '.' };
   }
 
   function findPending(a, b) {
@@ -306,8 +568,9 @@
     pending = pending.filter(function (x) { return x !== p; });
     refused[p.key] = true;
     var A = blobs[p.a], B = blobs[p.b];
-    logEvent('refuse', { a: p.a, b: p.b, source: p.source, shared: p.shared },
+    var ev = logEvent('refuse', { a: p.a, b: p.b, source: p.source, shared: p.shared },
              'kept apart "' + A.name + '" and "' + B.name + '" (suggested by ' + p.source + ')', [p.a, p.b]);
+    undoStack.push({ op: 'refuse', seq: ev.seq, key: p.key, a: p.a, b: p.b });
     push(A, B, 6);
     renderPending(); renderHistory(); renderInspector(); markClasses();
   }
@@ -317,12 +580,13 @@
     B.vx -= dx / d * speed; B.vy -= dy / d * speed;
   }
 
-  // drop resolution: the kind gate
-  function resolveDrop(a, b) {
-    if (sameKind(a, b)) { merge(a, b, 'human-drop'); setStatus('Merged (same kind).'); return 'merged'; }
+  // drop resolution: the kind gate (also used by the 'merge X and Y' command)
+  function resolveDrop(a, b, source) {
+    source = source || 'human-drop';
+    if (sameKind(a, b)) { merge(a, b, source); setStatus('Merged (same kind).'); return 'merged'; }
     var shared = sharedTags(a, b);
     if (shared.length) {
-      suggest(a, b, 'drop');
+      suggest(a, b, source === 'human-drop' ? 'drop' : 'command');
       setStatus('Different kinds sharing "' + shared.join(', ') + '": confirm with Accept or Keep apart.');
       return 'pending';
     }
@@ -356,13 +620,14 @@
     if (b.y < minY) { b.y = minY; b.vy = Math.abs(b.vy) * 0.5; }
     if (b.y > maxY) { b.y = maxY; b.vy = -Math.abs(b.vy) * 0.5; }
   }
-  function initialLayout() {
+  function initialLayout(onlyIds) {
     var ids = topLevel(), n = ids.length;
     var maxR = 0;
     ids.forEach(function (id) { maxR = Math.max(maxR, radiusOf(id)); });
     var cx = bounds.w / 2, cy = (bounds.h - 26) / 2;
     var R = Math.max(0, Math.min(bounds.w / 2, (bounds.h - 26) / 2) - maxR - 10);
     ids.forEach(function (id, i) {
+      if (onlyIds && onlyIds.indexOf(id) === -1) return;
       var a = -Math.PI / 2 + i * 2 * Math.PI / n, b = blobs[id];
       b.x = cx + Math.cos(a) * R; b.y = cy + Math.sin(a) * R; b.vx = b.vy = 0;
       clampOrb(b);
@@ -371,7 +636,18 @@
   function onResize() {
     computeBounds();
     topLevel().forEach(function (id) { clampOrb(blobs[id]); });
+    applyView();
     rebuildOrbs();
+  }
+
+  // ---------- zoom (scales the stage view; pointer math divides it back out) ----------
+  function applyView() { world.style.transform = 'translate(' + view.tx.toFixed(1) + 'px,' + view.ty.toFixed(1) + 'px) scale(' + view.z.toFixed(3) + ')'; }
+  function zoomTo(z, wx, wy) {
+    z = Math.max(0.5, Math.min(3, z));
+    if (Math.abs(z - 1) < 0.01 && wx === undefined) { view = { z: 1, tx: 0, ty: 0 }; applyView(); return; }
+    if (wx === undefined) { wx = (bounds.w / 2 - view.tx) / view.z; wy = (bounds.h / 2 - view.ty) / view.z; }
+    view = { z: z, tx: bounds.w / 2 - z * wx, ty: bounds.h / 2 - z * wy };
+    applyView();
   }
 
   // ---------- rendering ----------
@@ -415,14 +691,19 @@
       el.style.width = el.style.height = (2 * r) + 'px';
       el.style.boxShadow = ringShadow(b.rings);
       var g = document.createElement('div'); g.className = 'glow'; el.appendChild(g);
+      if (isZorb(id)) {
+        var z = document.createElement('div'); z.className = 'zipper'; el.appendChild(z);
+        el.title = b.name + ': zorb with ' + b.entries.length + ' files (open to list, unpack to copy out)';
+      }
       buildSubs(el, id, r - 2, 1);
       var lab = document.createElement('div'); lab.className = 'label';
       lab.textContent = b.name;
       var sm = document.createElement('small');
-      sm.textContent = (b.type === 'dir' ? 'dir · ' : '') + kindOf(id) + ' · ' + fmtBytes(massOf(id)) + (b.rings ? ' · ' + b.rings + ' ring' + (b.rings > 1 ? 's' : '') : '');
+      sm.textContent = (b.type === 'dir' ? 'dir · ' : '') + (isZorb(id) ? 'zorb · ' + b.entries.length + ' files' : kindOf(id)) + ' · ' + fmtBytes(massOf(id)) +
+        (b.rings ? ' · ' + b.rings + ' ring' + (b.rings > 1 ? 's' : '') : '');
       lab.appendChild(sm);
       el.appendChild(lab);
-      stage.insertBefore(el, msgEl);
+      world.appendChild(el);
       orbEls[id] = el;
     });
     positionOrbs(); markClasses(); checkEmpty();
@@ -460,6 +741,18 @@
   }
   function setStatus(t) { statusEl.textContent = t; }
 
+  function renderKey() {
+    var kinds = ['dir', 'image', 'audio', 'text', 'zip'];
+    order.forEach(function (id) {
+      if (!isLive(id)) return;
+      var k = kindOf(id);
+      if (k === 'empty' || k === 'mixed') k = 'dir';
+      if (kinds.indexOf(k) === -1) kinds.push(k);
+    });
+    document.getElementById('colorKey').innerHTML = kinds.map(function (k) {
+      return '<li data-kind="' + esc(k) + '">' + swatch(k) + esc(KIND_LABELS[k] || k) + '</li>';
+    }).join('');
+  }
   function renderPending() {
     var pl = document.getElementById('pendingList');
     pl.innerHTML = '';
@@ -476,21 +769,28 @@
   }
   function renderInspector() {
     var el = document.getElementById('inspector');
-    if (!selected || !blobs[selected]) { el.innerHTML = '<div class="muted">Click an orb to inspect it.</div>'; return; }
-    var b = blobs[selected];
+    if (!selected || !blobs[selected] || !isLive(selected)) { el.innerHTML = '<div class="muted">Click an orb to inspect it.</div>'; return; }
+    var b = blobs[selected], zorb = isZorb(selected);
     var kids = b.children.map(function (c) { return '<span class="child-link" data-select="' + esc(c) + '">' + esc(blobs[c].name) + '</span>'; }).join('') || '<span class="muted">—</span>';
-    el.innerHTML = '<dl>' +
+    var html = '<dl>' +
       '<dt>Name</dt><dd>' + esc(b.name) + (b.autoName ? ' <span class="muted">(auto)</span>' : '') + '</dd>' +
-      '<dt>Type</dt><dd>' + (b.type === 'dir' ? 'directory' : 'file') + '</dd>' +
-      '<dt>Kind</dt><dd>' + esc(kindOf(selected)) + '</dd>' +
+      '<dt>Type</dt><dd>' + (b.type === 'dir' ? 'directory' : (zorb ? 'file (zip archive, zorb)' : 'file')) + '</dd>' +
+      '<dt>Kind</dt><dd>' + swatch(kindOf(selected)) + ' ' + esc(kindOf(selected)) + '</dd>' +
       '<dt>Size</dt><dd>' + fmtBytes(contentSize(selected)) + '</dd>' +
       '<dt>Mass</dt><dd>' + fmtBytes(massOf(selected)) + ' <span class="muted">(' + massOf(selected) + ' B)</span></dd>' +
       '<dt>Tags</dt><dd>' + (b.tags.length ? esc(b.tags.join(', ')) : '<span class="muted">—</span>') + '</dd>' +
-      '<dt>Children</dt><dd>' + kids + '</dd>' +
+      (zorb ? '' : '<dt>Children</dt><dd>' + kids + '</dd>') +
       '<dt>Rings</dt><dd>' + b.rings + '</dd>' +
       '<dt>Parent</dt><dd>' + (b.parent ? '<span class="child-link" data-select="' + esc(b.parent) + '">' + esc(blobs[b.parent].name) + '</span>' : '<span class="muted">top level</span>') + '</dd>' +
       '<dt>Events</dt><dd>' + b.history.length + '</dd>' +
       '</dl>';
+    if (zorb) {
+      html += '<div class="muted" style="margin-top:6px">Contents (' + b.entries.length + ' files)</div><ul class="zlist" id="zipContents">' +
+        b.entries.map(function (e) { return '<li>' + swatch(e.kind) + '<span>' + esc(e.name) + '</span><span class="zs">' + esc(e.kind) + ' · ' + fmtBytes(e.size) + '</span></li>'; }).join('') +
+        '</ul><button class="lime" id="btnUnpack" data-unpack="' + esc(selected) + '">Unpack into a folder orb</button>';
+    }
+    if (b.type === 'file' && b.kind === 'audio') html += '<div class="row" style="margin-top:6px"><button data-play="' + esc(selected) + '">Play</button></div>';
+    el.innerHTML = html;
   }
   function renderHistory() {
     var ul = document.getElementById('history');
@@ -503,8 +803,8 @@
   }
   function structureChanged() {
     // drop suggestions whose orbs are no longer top level
-    pending = pending.filter(function (p) { return blobs[p.a].parent === null && blobs[p.b].parent === null; });
-    rebuildOrbs(); renderPending(); renderInspector(); renderHistory();
+    pending = pending.filter(function (p) { return blobs[p.a].parent === null && blobs[p.b].parent === null && !blobs[p.a].gone && !blobs[p.b].gone; });
+    rebuildOrbs(); renderPending(); renderInspector(); renderHistory(); renderKey();
   }
   function select(id) { selected = id; rebuildOrbs(); renderInspector(); }
 
@@ -544,11 +844,11 @@
   // ---------- pointer interaction (mouse + touch + pen) ----------
   function localPoint(e) {
     var rc = stage.getBoundingClientRect();
-    return { x: e.clientX - rc.left, y: e.clientY - rc.top };
+    return { x: (e.clientX - rc.left - view.tx) / view.z, y: (e.clientY - rc.top - view.ty) / view.z };
   }
   function onPointerDown(e) {
     var orbEl = e.target.closest ? e.target.closest('.orb') : null;
-    if (!orbEl) { if (e.target === stage) select(null); return; }
+    if (!orbEl) { if (e.target === stage || e.target === world) select(null); return; }
     var id = orbEl.dataset.id, b = blobs[id], pt = localPoint(e);
     var subEl = e.target.closest('.sub');
     drag = { id: id, pointerId: e.pointerId, offX: pt.x - b.x, offY: pt.y - b.y, sx: pt.x, sy: pt.y, moved: false,
@@ -578,7 +878,7 @@
     if (!drag || e.pointerId !== drag.pointerId) return;
     var d = drag; drag = null;
     try { stage.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
-    if (!d.moved) { select(d.clickId); return; }
+    if (!d.moved) { noteUsage('open', d.clickId, 'click'); select(d.clickId); return; }
     if (d.target && blobs[d.target] && blobs[d.target].parent === null) {
       try { resolveDrop(d.id, d.target); } catch (err) { setStatus('Error: ' + err.message); }
     } else setStatus('Moved "' + blobs[d.id].name + '".');
@@ -594,14 +894,14 @@
     var name = window.prompt('New blob name:', 'untitled');
     if (name === null) return;
     name = name.trim() || 'untitled';
-    var kind = window.prompt('Kind (image, audio, text):', 'text');
+    var kind = window.prompt('Kind (' + KINDS.join(', ') + '):', 'text');
     if (kind === null) return;
     kind = kind.trim().toLowerCase();
     if (KINDS.indexOf(kind) === -1) { setStatus('Unknown kind "' + kind + '", using text.'); kind = 'text'; }
     var id = createFile(name, kind, 20000 + Math.floor(Math.random() * 2000000), []);
+    undoStack.push({ op: 'create', seq: events[events.length - 1].seq, ids: [id], what: 'blob "' + blobs[id].name + '"' });
     var b = blobs[id];
-    b.x = bounds.w * (0.3 + Math.random() * 0.4); b.y = bounds.h * (0.3 + Math.random() * 0.4);
-    clampOrb(b);
+    placeNear(b);
     selected = id;
     structureChanged();
     setStatus('Created "' + b.name + '".');
@@ -620,26 +920,704 @@
     var t = window.prompt('Add tag to "' + blobs[selected].name + '":', '');
     if (t !== null && addTag(selected, t)) setStatus('Tagged.');
   }
+  function onUndo() { var r = undo(); setStatus(r.msg); reply(r.msg, r.ok ? 'ok' : 'err'); }
   function snapshot() {
     var out = {};
     order.forEach(function (id) {
       var b = blobs[id];
-      out[id] = { id: id, type: b.type, kind: kindOf(id), name: b.name, size: contentSize(id), mass: massOf(id), tags: b.tags.slice(),
-                  children: b.children.slice(), parent: b.parent, rings: b.rings, history: b.history.slice(),
-                  position: b.parent ? null : { x: Math.round(b.x), y: Math.round(b.y) } };
+      var o = { id: id, type: b.type, kind: kindOf(id), name: b.name, size: contentSize(id), mass: massOf(id), tags: b.tags.slice(),
+                children: b.children.slice(), parent: b.parent, rings: b.rings, history: b.history.slice(),
+                position: b.parent ? null : { x: Math.round(b.x), y: Math.round(b.y) } };
+      if (b.entries) o.entries = b.entries.map(function (e) { return { name: e.name, kind: e.kind, size: e.size }; });
+      if (b.gone) o.gone = true;
+      out[id] = o;
     });
-    return { format: 'blobfs-orb', version: 2, savedAt: new Date().toISOString(), constantMass: BODY,
+    return { format: 'blobfs-orb', version: 3, savedAt: new Date().toISOString(), constantMass: BODY,
              events: events.slice(), state: { blobs: out, topLevel: topLevel(), pending: pending.map(function (p) { return { a: p.a, b: p.b, source: p.source, shared: p.shared }; }),
-             refused: Object.keys(refused) } };
+             refused: Object.keys(refused), undo: JSON.parse(JSON.stringify(undoStack)) } };
   }
-  function onSave() {
-    var blob = new Blob([JSON.stringify(snapshot(), null, 2)], { type: 'application/json' });
+  function download(name, data, type) {
+    var blob = data instanceof Blob ? data : new Blob([data], { type: type });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
-    a.href = url; a.download = 'demo.orb.json'; a.style.display = 'none';
+    a.href = url; a.download = name; a.style.display = 'none';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     window.setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
-    setStatus('Saved demo.orb.json (' + events.length + ' events).');
+  }
+  // save: a real .orb zip (records + content-addressed payloads), reloadable with Open .orb
+  var saving = false;
+  function onSave() {
+    if (saving) { reply('Already saving…', 'ask'); return 'Already saving…'; }
+    saving = true;
+    setStatus('Saving demo.orb.zip…');
+    buildOrb().then(function (res) {
+      download('demo.orb.zip', res.zip, 'application/zip');
+      noteUsage('export', null, 'demo.orb.zip');
+      var m = 'Saved demo.orb.zip: ' + res.records.length + ' records, ' + res.files + ' file blobs stored as ' + res.objects + ' payload' + (res.objects === 1 ? '' : 's') + ' (SHA-256, deduplicated).';
+      setStatus(m); reply(m, 'ok');
+    }).catch(function (err) { reply('Save failed: ' + err.message, 'err'); setStatus('Save failed.'); })
+      .then(function () { saving = false; });
+    return 'Saving demo.orb.zip…';
+  }
+  // export: the event log (including the local open/play/export events) as readable text; not reloadable
+  function exportHistory() {
+    noteUsage('export', null, 'blobfs-history.txt');
+    var lines = ['BlobFS history export, ' + new Date().toISOString(), '', 'Events (' + events.length + ', append-only; open, play and export events are the local use log):'];
+    events.forEach(function (ev) { lines.push('#' + ev.seq + '  ' + ev.time + '  ' + ev.type + '  ' + ev.text); });
+    download('blobfs-history.txt', lines.join('\n') + '\n', 'text/plain');
+    var uses = events.filter(function (ev) { return ev.local; }).length;
+    var m = 'Exported blobfs-history.txt (' + events.length + ' events, ' + uses + ' of them local use-log events).';
+    setStatus(m);
+    return m;
+  }
+
+  // ---------- .orb container: a zip (STORE) holding MAGIC, records.jsonl and objects/<sha256> ----------
+  var ORB_MAGIC = 'BLOBFS-ORB\n1\n';
+  var forceJsSha = false;
+  var CRC_TABLE = null;
+  function utf8(s) { return new TextEncoder().encode(s); }
+  function crc32(u8) {
+    if (!CRC_TABLE) {
+      CRC_TABLE = new Uint32Array(256);
+      for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; CRC_TABLE[n] = c >>> 0; }
+    }
+    var crc = 0xFFFFFFFF;
+    for (var i = 0; i < u8.length; i++) crc = CRC_TABLE[(crc ^ u8[i]) & 0xFF] ^ (crc >>> 8);
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  }
+  // zip32 limits: no single entry of 4 GiB or more, the whole archive must fit 32-bit offsets, at most 65535 entries
+  var ZIP32_MAX = 4294967295, FOUR_GIB = 4294967296;
+  function zip32Check(files) {
+    var total = 22;
+    if (files.length > 65535) throw new Error('too many entries for a zip32 .orb (' + files.length + ', limit 65535)');
+    files.forEach(function (f) {
+      var n = utf8(f.name).length, len = f.size !== undefined ? f.size : f.data.length;
+      if (len >= FOUR_GIB) throw new Error('"' + f.name + '" is ' + fmtBytes(len) + '; a single file must be under 4 GiB (zip32 limit)');
+      total += 30 + n + len + 46 + n;
+    });
+    if (total > ZIP32_MAX) throw new Error('the .orb would be ' + fmtBytes(total) + ', over the 4 GiB zip32 limit; nothing was saved');
+    return total;
+  }
+  // minimal zip writer: STORE only, UTF-8 names, no zip64 (limits enforced by zip32Check)
+  function zipStore(files) {
+    zip32Check(files);
+    var parts = [], central = [], offset = 0, d = new Date();
+    var dosTime = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+    var dosDate = ((Math.max(1980, d.getFullYear()) - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+    files.forEach(function (f) {
+      var nm = utf8(f.name), crc = crc32(f.data), len = f.data.length;
+      var lh = new DataView(new ArrayBuffer(30));
+      lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+      lh.setUint16(10, dosTime, true); lh.setUint16(12, dosDate, true); lh.setUint32(14, crc, true);
+      lh.setUint32(18, len, true); lh.setUint32(22, len, true); lh.setUint16(26, nm.length, true); lh.setUint16(28, 0, true);
+      parts.push(new Uint8Array(lh.buffer), nm, f.data);
+      var ch = new DataView(new ArrayBuffer(46));
+      ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, 0, true);
+      ch.setUint16(12, dosTime, true); ch.setUint16(14, dosDate, true); ch.setUint32(16, crc, true);
+      ch.setUint32(20, len, true); ch.setUint32(24, len, true); ch.setUint16(28, nm.length, true); ch.setUint32(42, offset, true);
+      central.push(new Uint8Array(ch.buffer), nm);
+      offset += 30 + nm.length + len;
+    });
+    var cdSize = central.reduce(function (s, x) { return s + x.length; }, 0);
+    var end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+    end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
+    return new Blob(parts.concat(central, [new Uint8Array(end.buffer)]), { type: 'application/zip' });
+  }
+  // minimal zip reader: central directory index, STORE and (where the browser has DecompressionStream) DEFLATE, CRC-checked
+  function unzipIndex(buf) {
+    var dv = new DataView(buf), n = buf.byteLength, eocd = -1, out = [], dec = new TextDecoder();
+    for (var i = n - 22; i >= Math.max(0, n - 65557); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    if (eocd < 0) throw new Error('not a zip');
+    var count = dv.getUint16(eocd + 10, true), p = dv.getUint32(eocd + 16, true);
+    for (var k = 0; k < count; k++) {
+      if (p + 46 > n || dv.getUint32(p, true) !== 0x02014b50) throw new Error('damaged zip directory');
+      var nl = dv.getUint16(p + 28, true), xl = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true);
+      out.push({ name: dec.decode(new Uint8Array(buf, p + 46, nl)), method: dv.getUint16(p + 10, true), crc: dv.getUint32(p + 16, true),
+                 csize: dv.getUint32(p + 20, true), usize: dv.getUint32(p + 24, true), offset: dv.getUint32(p + 42, true) });
+      p += 46 + nl + xl + cl;
+    }
+    return out;
+  }
+  function unzipEntry(buf, e) {
+    var dv = new DataView(buf);
+    if (dv.getUint32(e.offset, true) !== 0x04034b50) return Promise.reject(new Error('damaged zip entry "' + e.name + '"'));
+    var start = e.offset + 30 + dv.getUint16(e.offset + 26, true) + dv.getUint16(e.offset + 28, true);
+    var raw = new Uint8Array(buf, start, e.csize), pr;
+    if (e.method === 0) pr = Promise.resolve(raw.slice());
+    else if (e.method === 8 && window.DecompressionStream) {
+      pr = new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer().then(function (ab) { return new Uint8Array(ab); });
+    } else return Promise.reject(new Error('"' + e.name + '" uses a compression method this browser cannot read'));
+    return pr.then(function (u8) {
+      if (crc32(u8) !== e.crc) throw new Error('CRC mismatch in "' + e.name + '" (the file is damaged)');
+      return u8;
+    });
+  }
+  function blobBytes(b) { return b.arrayBuffer().then(function (ab) { return new Uint8Array(ab); }); }
+  function hex(u8) { var s = ''; for (var i = 0; i < u8.length; i++) s += (u8[i] < 16 ? '0' : '') + u8[i].toString(16); return s; }
+  // SHA-256: crypto.subtle where present (Chrome and Firefox expose it on file://), otherwise the inline version below
+  function sha256(u8) {
+    if (!forceJsSha && window.crypto && window.crypto.subtle && window.crypto.subtle.digest) {
+      return window.crypto.subtle.digest('SHA-256', u8).then(function (h) { return hex(new Uint8Array(h)); });
+    }
+    return Promise.resolve(hex(sha256js(u8)));
+  }
+  var SHA_K = null, SHA_H0 = null;
+  function sha256js(msg) {
+    if (!SHA_K) {
+      var primes = [], c = 2;
+      while (primes.length < 64) { var isP = true; for (var q = 2; q * q <= c; q++) if (c % q === 0) { isP = false; break; } if (isP) primes.push(c); c++; }
+      var frac = function (x) { return ((x - Math.floor(x)) * 4294967296) >>> 0; };
+      SHA_K = primes.map(function (p) { return frac(Math.cbrt(p)); });
+      SHA_H0 = primes.slice(0, 8).map(function (p) { return frac(Math.sqrt(p)); });
+    }
+    var l = msg.length, nb = (l + 9 + 63) >> 6, buf = new Uint8Array(nb * 64), dv = new DataView(buf.buffer);
+    buf.set(msg); buf[l] = 0x80;
+    dv.setUint32(nb * 64 - 8, Math.floor(l / 536870912), false); dv.setUint32(nb * 64 - 4, (l * 8) >>> 0, false);
+    var H = SHA_H0.slice(), w = new Uint32Array(64);
+    for (var blk = 0; blk < nb; blk++) {
+      for (var t = 0; t < 16; t++) w[t] = dv.getUint32(blk * 64 + t * 4, false);
+      for (t = 16; t < 64; t++) {
+        var x = w[t - 15], y = w[t - 2];
+        var s0 = ((x >>> 7) | (x << 25)) ^ ((x >>> 18) | (x << 14)) ^ (x >>> 3);
+        var s1 = ((y >>> 17) | (y << 15)) ^ ((y >>> 19) | (y << 13)) ^ (y >>> 10);
+        w[t] = (w[t - 16] + s0 + w[t - 7] + s1) >>> 0;
+      }
+      var a = H[0], b = H[1], cc = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+      for (t = 0; t < 64; t++) {
+        var S1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
+        var t1 = (h + S1 + ((e & f) ^ (~e & g)) + SHA_K[t] + w[t]) >>> 0;
+        var S0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+        var t2 = (S0 + ((a & b) ^ (a & cc) ^ (b & cc))) >>> 0;
+        h = g; g = f; f = e; e = (d + t1) >>> 0; d = cc; cc = b; b = a; a = (t1 + t2) >>> 0;
+      }
+      H[0] = (H[0] + a) >>> 0; H[1] = (H[1] + b) >>> 0; H[2] = (H[2] + cc) >>> 0; H[3] = (H[3] + d) >>> 0;
+      H[4] = (H[4] + e) >>> 0; H[5] = (H[5] + f) >>> 0; H[6] = (H[6] + g) >>> 0; H[7] = (H[7] + h) >>> 0;
+    }
+    var out = new Uint8Array(32), ov = new DataView(out.buffer);
+    for (var i = 0; i < 8; i++) ov.setUint32(i * 4, H[i], false);
+    return out;
+  }
+  // payload bytes of a file blob: real bytes when the page has them (imported, loaded from an .orb, or a stored zip entry),
+  // otherwise a small deterministic placeholder (the sample disk has declared sizes but no real contents)
+  function placeholderBytes(b) {
+    return utf8('BlobFS placeholder payload\nsource: ' + (b.src || b.id) + '\nkind: ' + b.kind + '\ndeclared-size: ' + b.size + '\n');
+  }
+  function payloadOf(b) {
+    if (b.file) return blobBytes(b.file).then(function (u8) { return { bytes: u8, placeholder: !!b.placeholder }; });
+    if (b.zipRef && b.zipRef.blob) {
+      return b.zipRef.blob.arrayBuffer().then(function (buf) {
+        var e = unzipIndex(buf).filter(function (x) { return x.name === b.zipRef.entry; })[0];
+        if (!e) throw new Error('entry missing');
+        return unzipEntry(buf, e);
+      }).then(function (u8) { return { bytes: u8, placeholder: false }; }, function (err) { throw new Error('could not read "' + b.zipRef.entry + '" from its zip (' + err.message + '); nothing was saved'); });
+    }
+    return Promise.resolve({ bytes: placeholderBytes(b), placeholder: true });
+  }
+  function buildOrb() {
+    var ids = order.slice(), objects = {}, byId = {};
+    return Promise.all(ids.map(function (id) {
+      var b = blobs[id];
+      if (b.type !== 'file') return null;
+      return payloadOf(b).then(function (p) {
+        return sha256(p.bytes).then(function (h) { objects[h] = p.bytes; byId[id] = { hash: h, placeholder: p.placeholder }; });
+      });
+    })).then(function () {
+      var recs = [{ t: 'header', format: 'blobfs-orb', version: 1, constantMass: BODY, savedAt: new Date().toISOString(), writer: 'blobfs-2d.html' }];
+      ids.forEach(function (id) {
+        var b = blobs[id];
+        var r = { t: 'blob', id: id, type: b.type, kind: kindOf(id), name: b.name, size: contentSize(id), mass: massOf(id),
+                  tags: b.tags.slice(), rings: b.rings, history: b.history.slice(), hash: null };
+        if (b.type === 'file') { r.hash = byId[id].hash; r.payload = byId[id].placeholder ? 'placeholder' : 'bytes'; if (b.src) r.src = b.src; }
+        if (b.entries) r.entries = b.entries.map(function (e) { return { name: e.name, kind: e.kind, size: e.size }; });
+        if (b.autoName) r.autoName = true;
+        if (b.gone) r.gone = true;
+        recs.push(r);
+      });
+      ids.forEach(function (id) { blobs[id].children.forEach(function (c, i) { recs.push({ t: 'link', parent: id, child: c, index: i }); }); });
+      events.forEach(function (ev) { if (ev.type === 'merge') recs.push({ t: 'merge', time: ev.time, seq: ev.seq, a: ev.a, b: ev.b, result: ev.result, rule: ev.rule, detail: ev.text }); });
+      topLevel().forEach(function (id) { recs.push({ t: 'position', id: id, x: Math.round(blobs[id].x), y: Math.round(blobs[id].y) }); });
+      Object.keys(refused).forEach(function (k) { recs.push({ t: 'refused', key: k }); });
+      undoStack.forEach(function (u, i) { recs.push({ t: 'undo', pos: i, rec: JSON.parse(JSON.stringify(u)) }); });
+      pending.forEach(function (p) { recs.push({ t: 'pending', key: p.key, a: p.a, b: p.b, source: p.source, shared: p.shared.slice(), crossKind: p.crossKind }); });
+      events.forEach(function (ev) { var r = { t: 'event' }; for (var k in ev) if (Object.prototype.hasOwnProperty.call(ev, k)) r[k] = ev[k]; recs.push(r); });
+      var files = [{ name: 'MAGIC', data: utf8(ORB_MAGIC) },
+                   { name: 'records.jsonl', data: utf8(recs.map(function (r) { return JSON.stringify(r); }).join('\n') + '\n') }];
+      Object.keys(objects).sort().forEach(function (h) { files.push({ name: 'objects/' + h, data: objects[h] }); });
+      return { zip: zipStore(files), records: recs, objects: Object.keys(objects).length, files: ids.filter(function (id) { return blobs[id].type === 'file'; }).length };
+    });
+  }
+  var lastLoad = null;
+  function loadOrbZip(buf, fileName) {
+    var idx = unzipIndex(buf), map = {};
+    idx.forEach(function (e) { map[e.name] = e; });
+    if (!map.MAGIC || !map['records.jsonl']) return Promise.reject(new Error('not a BlobFS .orb (no MAGIC or records.jsonl inside)'));
+    var dec = new TextDecoder(), recs, objects = {};
+    return Promise.all([unzipEntry(buf, map.MAGIC), unzipEntry(buf, map['records.jsonl'])]).then(function (r) {
+      if (dec.decode(r[0]).indexOf('BLOBFS-ORB') !== 0) throw new Error('bad MAGIC header');
+      recs = dec.decode(r[1]).split('\n').filter(function (l) { return l.trim(); }).map(function (l) { return JSON.parse(l); });
+      // every payload is checked against its name: a flipped bit refuses to load
+      return Promise.all(idx.filter(function (e) { return e.name.indexOf('objects/') === 0 && e.name.length > 8; }).map(function (e) {
+        return unzipEntry(buf, e).then(function (u8) {
+          return sha256(u8).then(function (h) {
+            if (h !== e.name.slice(8)) throw new Error('hash mismatch for ' + e.name + ' (the file is damaged)');
+            objects[h] = u8;
+          });
+        });
+      }));
+    }).then(function () {
+      var bl = {}, evs = [], ref = [], links = [], und = [], pend = [];
+      recs.forEach(function (x) {
+        if (x.t === 'blob') bl[x.id] = { type: x.type, kind: x.kind, name: x.name, size: x.size, tags: x.tags, rings: x.rings, history: x.history,
+                                          gone: !!x.gone, entries: x.entries, autoName: !!x.autoName, payload: x.payload, src: x.src, hash: x.hash,
+                                          children: [], parent: null, position: null };
+        else if (x.t === 'link') links.push(x);
+        else if (x.t === 'position' && bl[x.id]) bl[x.id].position = { x: x.x, y: x.y };
+        else if (x.t === 'refused') ref.push(x.key);
+        else if (x.t === 'undo') und.push(x);
+        else if (x.t === 'pending') pend.push(x);
+        else if (x.t === 'event') { var ev = {}; for (var k in x) if (k !== 't') ev[k] = x[k]; evs.push(ev); }
+      });
+      links.sort(function (p, q) { return p.index - q.index; }).forEach(function (l) {
+        if (!bl[l.parent] || !bl[l.child]) throw new Error('dangling link ' + l.parent + ' -> ' + l.child + ' (the file is damaged)');
+        bl[l.parent].children.push(l.child); bl[l.child].parent = l.parent;
+      });
+      Object.keys(bl).forEach(function (id) {
+        var s = bl[id];
+        if (s.type === 'file') {
+          if (!s.hash || !objects[s.hash]) throw new Error('payload missing for "' + s.name + '"');
+          s.payloadBlob = new Blob([objects[s.hash]]);
+        }
+      });
+      und.sort(function (p, q) { return p.pos - q.pos; });
+      lastLoad = { records: recs.length, objects: Object.keys(objects).sort(),
+                   blobHashes: Object.keys(bl).filter(function (id) { return bl[id].type === 'file'; }).map(function (id) { return [id, bl[id].hash]; }),
+                   links: links.map(function (l) { return [l.parent, l.child, l.index]; }) };
+      loadOrb({ format: 'blobfs-orb', state: { blobs: bl, refused: ref, undo: und.map(function (u) { return u.rec; }), pending: pend }, events: evs }, fileName);
+      return { blobs: Object.keys(bl).length, objects: Object.keys(objects).length };
+    });
+  }
+
+  // ---------- audio ----------
+  function playTone(seed) {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    try {
+      if (!audioCtx) audioCtx = new AC();
+      if (audioCtx.state === 'suspended' && audioCtx.resume) { var rp = audioCtx.resume(); if (rp && rp.catch) rp.catch(function () {}); }
+      var h = 0; for (var i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 997;
+      var f = 220 * Math.pow(2, (h % 12) / 12), t = audioCtx.currentTime;
+      [1, 1.5].forEach(function (mul, k) {
+        var o = audioCtx.createOscillator(), g = audioCtx.createGain(), t0 = t + k * 0.25;
+        o.type = 'sine'; o.frequency.value = f * mul;
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(0.18, t0 + 0.03);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.5);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(t0); o.stop(t0 + 0.55);
+      });
+      return true;
+    } catch (err) { return false; }
+  }
+  function firstAudio(id) {
+    var b = blobs[id];
+    if (b.type === 'file') return b.kind === 'audio' ? id : null;
+    for (var i = 0; i < b.children.length; i++) { var r = firstAudio(b.children[i]); if (r) return r; }
+    return null;
+  }
+  function play(id) {
+    var b = blobs[id];
+    if (isZorb(id)) {
+      var n = b.entries.filter(function (e) { return e.kind === 'audio'; }).length;
+      return { ok: false, msg: 'Nothing to play: "' + b.name + '" is a zip' + (n ? ' (' + n + ' audio files inside; unpack it first).' : '.') };
+    }
+    var a = firstAudio(id);
+    if (!a) return { ok: false, msg: 'Nothing to play: "' + b.name + '" has no audio (' + kindOf(id) + ').' };
+    var A = blobs[a];
+    noteUsage('play', a);
+    if (A.file && window.Audio) {
+      try {
+        var url = URL.createObjectURL(A.file), au = new Audio(url);
+        var pr = au.play();
+        if (pr && pr.catch) pr.catch(function (err) { reply('Could not play "' + A.name + '": ' + err.message, 'err'); });
+        return { ok: true, msg: 'Playing "' + A.name + '".' };
+      } catch (err) { return { ok: false, msg: 'Could not play "' + A.name + '".' }; }
+    }
+    if (playTone(A.name)) return { ok: true, msg: 'Playing "' + A.name + '" (the sample disk has no real audio data, so this is a short generated tone).' };
+    return { ok: false, msg: 'Nothing to play: no audio data for "' + A.name + '" and this browser has no WebAudio.' };
+  }
+
+  // ---------- import (only ever started by a real click on a button) ----------
+  function readZipEntries(file) {
+    return file.arrayBuffer().then(function (buf) {
+      return unzipIndex(buf).filter(function (e) { return e.name.slice(-1) !== '/'; })
+        .map(function (e) { return { name: e.name, kind: kindFromName(e.name), size: e.usize }; });
+    });
+  }
+  function addFileOrb(file, parentId) {
+    var kind = kindFromName(file.name);
+    var id = createFile(file.name, kind, file.size, [], parentId);
+    blobs[id].file = file;
+    if (kind === 'zip' && file.arrayBuffer) {
+      readZipEntries(file).then(function (ents) {
+        blobs[id].entries = ents;
+        logEvent('index', { id: id, entries: ents.length }, 'listed ' + ents.length + ' entries in "' + blobs[id].name + '"', [id]);
+        structureChanged();
+      }).catch(function () { setStatus('Could not read the contents of "' + file.name + '".'); });
+    }
+    return id;
+  }
+  // files of 4 GiB or more cannot go into a zip32 .orb: refuse them up front with a clear message
+  function admit(files) {
+    var ok = [], big = [];
+    files.forEach(function (f) { (f.size >= FOUR_GIB ? big : ok).push(f); });
+    if (big.length) {
+      var m = 'Refused ' + big.map(function (f) { return '"' + f.name + '" (' + fmtBytes(f.size) + ')'; }).join(', ') + ': a file must be under 4 GiB to fit in an .orb (zip32 limit).';
+      setStatus(m); reply(m, 'err');
+    }
+    return { ok: ok, refused: big.length };
+  }
+  function onFolderChosen(e) {
+    var files = Array.prototype.slice.call(e.target.files || []);
+    e.target.value = '';
+    var adm = admit(files); files = adm.ok;
+    if (!files.length) return;
+    var dirs = {}, roots = [];
+    files.forEach(function (f) {
+      var parts = (f.webkitRelativePath || f.name).split('/');
+      var parent = null, path = '';
+      for (var i = 0; i < parts.length - 1; i++) {
+        path += (i ? '/' : '') + parts[i];
+        if (!dirs[path]) { dirs[path] = createDir(i === 0 ? topUniqueName(parts[i]) : parts[i], [], parent); if (!parent) roots.push(dirs[path]); }
+        parent = dirs[path];
+      }
+      var id = addFileOrb(f, parent);
+      if (!parent) roots.push(id);
+    });
+    finishImport(roots, files.length, 'folder');
+  }
+  function onFilesChosen(e) {
+    var files = Array.prototype.slice.call(e.target.files || []);
+    e.target.value = '';
+    addFiles(files, 'files');
+  }
+  function addFiles(files, what) {
+    var adm = admit(files); files = adm.ok;
+    if (!files.length) return [];
+    var roots = files.map(function (f) { return addFileOrb(f, null); });
+    finishImport(roots, files.length, what);
+    if (adm.refused) reply('Imported ' + files.length + ' file' + (files.length === 1 ? '' : 's') + '; refused ' + adm.refused + ' of 4 GiB or more (zip32 limit).', 'err');
+    return roots;
+  }
+  // files dragged from the desktop onto the stage become orbs holding their real bytes
+  function hasFiles(e) { var t = e.dataTransfer && e.dataTransfer.types; return !!t && Array.prototype.indexOf.call(t, 'Files') !== -1; }
+  function onDragOver(e) { if (hasFiles(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }
+  function onDrop(e) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    var items = e.dataTransfer.items, dirs = 0, files = [];
+    Array.prototype.forEach.call(e.dataTransfer.files || [], function (f, i) {
+      var it = items && items[i], en = it && it.webkitGetAsEntry ? it.webkitGetAsEntry() : null;
+      if (en && en.isDirectory) dirs++; else files.push(f);
+    });
+    if (files.length) addFiles(files, 'drop');
+    if (dirs) reply('Dropped folders are not read; use Import folder for a folder.', 'ask');
+  }
+  function finishImport(roots, nFiles, what) {
+    var ev = logEvent('import', { what: what, ids: roots, files: nFiles }, 'imported ' + nFiles + ' file' + (nFiles === 1 ? '' : 's') + ' (' + what + ')', roots);
+    undoStack.push({ op: 'create', seq: ev.seq, ids: roots, what: 'the ' + what + ' import' });
+    roots.forEach(function (id) { placeNear(blobs[id]); });
+    selected = roots[0] || null;
+    structureChanged();
+    var m = 'Imported ' + nFiles + ' file' + (nFiles === 1 ? '' : 's') + '.';
+    setStatus(m); reply(m, 'ok');
+  }
+  function loadOrb(data, fileName) {
+    if (!data || data.format !== 'blobfs-orb' || !data.state || !data.state.blobs) throw new Error('not a BlobFS .orb file');
+    Object.keys(blobs).forEach(function (k) { delete blobs[k]; });
+    order.length = 0; events.length = 0; undoStack.length = 0; pending = []; refused = {}; selected = null; lastOpen = null;
+    var src = data.state.blobs, maxId = 0, noPos = [];
+    Object.keys(src).forEach(function (id) {
+      var s = src[id];
+      var b = { id: id, type: s.type === 'dir' ? 'dir' : 'file', name: String(s.name), kind: null, size: 0, tags: (s.tags || []).slice(),
+                children: (s.children || []).slice(), parent: s.parent || null, history: (s.history || []).slice(), rings: s.rings || 0,
+                autoName: !!s.autoName, entries: null, gone: !!s.gone, file: s.payloadBlob || null, placeholder: s.payload === 'placeholder',
+                src: s.src || null, zipRef: null, x: 0, y: 0, vx: 0, vy: 0 };
+      if (b.type === 'file') { b.kind = s.kind || kindFromName(b.name); b.size = Math.max(0, Number(s.size) || 0); }
+      if (b.kind === 'zip') b.entries = (s.entries || []).map(function (e) { return { name: String(e.name), kind: e.kind || kindFromName(e.name), size: Number(e.size) || 0 }; });
+      if (s.position) { b.x = s.position.x; b.y = s.position.y; } else if (!b.parent) noPos.push(id);
+      blobs[id] = b; order.push(id);
+      var num = parseInt(String(id).replace(/\D/g, ''), 10); if (num > maxId) maxId = num;
+    });
+    order.forEach(function (id) { blobs[id].children = blobs[id].children.filter(function (c) { return !!blobs[c]; }); });
+    nextId = maxId + 1;
+    (data.events || []).forEach(function (ev) { events.push(ev); });
+    nextSeq = events.reduce(function (m, ev) { return Math.max(m, ev.seq || 0); }, 0) + 1;
+    (data.state.refused || []).forEach(function (k) { refused[k] = true; });
+    // the undo history and the open suggestions come back exactly as saved
+    (data.state.undo || []).forEach(function (u) { if (u && u.op) undoStack.push(u); });
+    (data.state.pending || []).forEach(function (p) {
+      if (!blobs[p.a] || !blobs[p.b] || blobs[p.a].parent || blobs[p.b].parent || blobs[p.a].gone || blobs[p.b].gone) return;
+      var key = p.key || pairKey(p.a, p.b);
+      if (refused[key] || pending.some(function (q) { return q.key === key; })) return;
+      pending.push({ key: key, a: p.a, b: p.b, source: p.source || 'physics', shared: (p.shared || sharedTags(p.a, p.b)).slice(),
+                     crossKind: p.crossKind !== undefined ? !!p.crossKind : !sameKind(p.a, p.b) });
+    });
+    if (noPos.length) initialLayout(noPos);
+    topLevel().forEach(function (id) { clampOrb(blobs[id]); });
+    logEvent('load', { file: fileName, blobs: order.length }, 'opened "' + fileName + '" (' + order.length + ' blobs, ' + (events.length) + ' earlier events kept)', []);
+    msgEl.className = '';
+    structureChanged();
+  }
+  function onOrbChosen(e) {
+    var f = (e.target.files || [])[0];
+    e.target.value = '';
+    if (!f) return;
+    f.arrayBuffer().then(function (buf) {
+      var u8 = new Uint8Array(buf);
+      if (u8[0] === 0x50 && u8[1] === 0x4b) {
+        return loadOrbZip(buf, f.name).then(function (r) {
+          return 'Opened ' + f.name + ': ' + topLevel().length + ' orbs, ' + r.blobs + ' blobs, ' + r.objects + ' payloads (all SHA-256 hashes verified).';
+        });
+      }
+      loadOrb(JSON.parse(new TextDecoder().decode(u8)), f.name); // older demo.orb.json saves
+      return 'Opened ' + f.name + ' (legacy JSON save): ' + topLevel().length + ' orbs.';
+    }).then(function (m) { setStatus(m); reply(m, 'ok'); }, function (err) { reply('Could not open ' + f.name + ': ' + err.message, 'err'); });
+  }
+  function highlight(btnId) {
+    var el = document.getElementById(btnId);
+    el.classList.remove('pulse');
+    void el.offsetWidth;
+    el.classList.add('pulse');
+    if (el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+    window.setTimeout(function () { el.classList.remove('pulse'); }, 6000);
+  }
+
+  // ---------- command bar: typed and spoken commands share this parser ----------
+  var NUMW = { zero: '0', one: '1', two: '2', to: '2', too: '2', three: '3', four: '4', for: '4', five: '5', six: '6', seven: '7', eight: '8', nine: '9', ten: '10' };
+  function compact(s, words) {
+    var w = String(s).toLowerCase().split(/\s+/);
+    if (words) w = w.map(function (x) { return NUMW[x] || x; });
+    return w.join(' ').replace(/[^a-z0-9]/g, '');
+  }
+  function lev(a, b) {
+    if (a === b) return 0;
+    var prev = [], cur, i, j;
+    for (j = 0; j <= b.length; j++) prev[j] = j;
+    for (i = 1; i <= a.length; i++) {
+      cur = [i];
+      for (j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = cur;
+    }
+    return prev[b.length];
+  }
+  function unquote(s) { return String(s).trim().replace(/^["']|["']$/g, ''); }
+  // fuzzy name lookup: exact > prefix > substring > small edit distance; ties are reported, never guessed
+  function resolveName(q, filter) {
+    q = unquote(q).replace(/^(the|my|this|that)\s+/i, '').replace(/\s+(orb|zorb|file|folder|blob)$/i, '');
+    var cq = compact(q, false), cw = compact(q, true);
+    if (!cq) return { none: true, q: q };
+    var scored = [];
+    order.forEach(function (id) {
+      if (!isLive(id) || (filter && !filter(id))) return;
+      var full = compact(blobs[id].name), base = compact(stripExt(blobs[id].name)), s = 0;
+      [cq, cw].forEach(function (c) {
+        var v = 0;
+        if (c === full || c === base) v = 100;
+        else if (full.indexOf(c) === 0) v = 80;
+        else if (full.indexOf(c) !== -1) v = 60;
+        else {
+          var d = Math.min(lev(c, base), lev(c, full)), tol = c.length <= 4 ? 1 : (c.length <= 8 ? 2 : 3);
+          if (d <= tol) v = 40 - d;
+        }
+        s = Math.max(s, v);
+      });
+      if (s) scored.push({ id: id, s: s });
+    });
+    if (!scored.length) return { none: true, q: q };
+    var best = Math.max.apply(null, scored.map(function (x) { return x.s; }));
+    var top = scored.filter(function (x) { return x.s === best; }).map(function (x) { return x.id; });
+    if (top.length > 1) return { ambiguous: top, q: q };
+    return { id: top[0] };
+  }
+  function nameList(ids) {
+    return ids.map(function (id) { return '"' + blobs[id].name + '"' + (blobs[id].parent ? ' (in ' + blobs[blobs[id].parent].name + ')' : ''); }).join(', ');
+  }
+  // returns an id, or null after replying with the problem
+  function need(q, filter, what) {
+    var r = resolveName(q, filter);
+    if (r.id) return r.id;
+    if (r.ambiguous) { reply('"' + r.q + '" matches ' + r.ambiguous.length + ' orbs: ' + nameList(r.ambiguous) + '. Which one? Say more of the name.', 'ask'); return null; }
+    reply('I could not find ' + (what || 'an orb') + ' called "' + r.q + '".', 'err');
+    return null;
+  }
+  function reply(text, cls) {
+    replyEl.textContent = text;
+    replyEl.className = cls || '';
+  }
+  var HELP = [
+    ['merge X and Y', 'or "merge X into Y"; same kind merges, cross-kind needs a shared tag + accept'],
+    ['accept', 'accept the pending suggestion'], ['refuse', 'or "keep apart"'],
+    ['split X', 'split X out (or the selected orb)'], ['undo', 'reverse the last action (adds an undo event)'],
+    ['open X', 'inspect X; a zorb lists its contents'], ['play X', 'play an audio orb'],
+    ['rename X to Y', 'kind and extension are kept'], ['tag X with T', ''],
+    ['new folder [name]', ''], ['unpack X', 'copy a zorb into a new folder orb'],
+    ['save', 'download demo.orb.zip (real .orb: records + SHA-256 payloads)'], ['export', 'download blobfs-history.txt (event log)'],
+    ['zoom in / zoom out / zoom reset / zoom X', ''], ['close', 'close the inspector and this list'],
+    ['import folder / add files / open orb file', 'highlights the button; files need your click'],
+    ['what can I say?', 'this list']
+  ];
+  function showHelp() {
+    helpEl.innerHTML = '<ul>' + HELP.map(function (h) { return '<li><code>' + esc(h[0]) + '</code>' + (h[1] ? ' <span class="muted">' + esc(h[1]) + '</span>' : '') + '</li>'; }).join('') + '</ul>';
+    helpEl.hidden = false;
+  }
+  function pickPending(arg, verb) {
+    if (!pending.length) { reply('Nothing to ' + verb + ': there are no pending suggestions.', 'err'); return null; }
+    var list = pending;
+    if (arg) {
+      var id = need(arg); if (!id) return null;
+      list = pending.filter(function (p) { return p.a === id || p.b === id; });
+      if (!list.length) { reply('No pending suggestion involves "' + blobs[id].name + '".', 'err'); return null; }
+    }
+    if (list.length > 1) {
+      reply(list.length + ' suggestions are pending: ' + list.map(function (p) { return '"' + blobs[p.a].name + '" + "' + blobs[p.b].name + '"'; }).join('; ') + '. Say "' + verb + ' <name>".', 'ask');
+      return null;
+    }
+    return list[0];
+  }
+  function askPicker(btnId) { highlight(btnId); reply('Click the highlighted button to choose files.', 'ask'); }
+
+  function runCommand(raw, via) {
+    var t = String(raw || '').trim().replace(/[.!?]+$/, '').replace(/^(please|ok|okay|hey blobfs|blobfs)[,\s]+/i, '').replace(/\s+please$/i, '').trim();
+    var lc = t.toLowerCase(), m;
+    try {
+      if (!t) { reply('Type or say a command. Try "what can I say?"', 'ask'); return; }
+      if (/^(what can i say|what can i do|help|commands|list commands)\b/.test(lc)) { showHelp(); reply('Here is what you can say (listed below).', 'ok'); return; }
+      // file pickers need a real click: highlight the button, never call .click() on the input
+      if (/^(import|add|open|choose|pick)( a| my| the)? (folder|directory)$/.test(lc)) { askPicker('btnImportFolder'); return; }
+      if (/^(add|import|upload|choose|pick)( some| a| the)? files?$/.test(lc)) { askPicker('btnAddFiles'); return; }
+      if (/^(open|load|import)( an| the| a)? (\.|dot )?orb( file)?$/.test(lc)) { askPicker('btnOpenOrb'); return; }
+      if ((m = /^(?:merge|combine|join)\s+(.+?)\s+(?:and|into|with|onto|to|\+)\s+(.+)$/i.exec(t))) {
+        var a = need(m[1]); if (!a) return;
+        var b = need(m[2]); if (!b) return;
+        if (a === b) { reply('That is the same orb twice.', 'err'); return; }
+        var nested = [a, b].filter(function (x) { return blobs[x].parent; });
+        if (nested.length) { reply('"' + blobs[nested[0]].name + '" is inside "' + blobs[blobs[nested[0]].parent].name + '"; split it out first.', 'err'); return; }
+        var na = blobs[a].name, nb = blobs[b].name, res = resolveDrop(a, b, 'human-command');
+        if (res === 'merged') reply('Merged "' + na + '" and "' + nb + '" into "' + blobs[selected].name + '". Say "undo" to reverse.', 'ok');
+        else if (res === 'pending') reply('Different kinds sharing a tag: say "accept" to merge or "refuse" to keep apart.', 'ask');
+        else reply('Different kinds and no shared tag, so "' + na + '" and "' + nb + '" stay apart. Tag both with the same tag first.', 'err');
+        return;
+      }
+      if ((m = /^(?:accept|yes|confirm)(?:\s+(.+))?$/i.exec(t))) {
+        var p = pickPending(m[1], 'accept'); if (!p) return;
+        var pa = blobs[p.a].name, pb = blobs[p.b].name, r0 = acceptSuggestion(p.key);
+        reply('Accepted: merged "' + pa + '" and "' + pb + '" into "' + blobs[r0].name + '".', 'ok'); return;
+      }
+      if ((m = /^(?:refuse|reject|no|keep (?:them |it )?apart|keep separate)(?:\s+(.+))?$/i.exec(t))) {
+        var p2 = pickPending(m[1], 'refuse'); if (!p2) return;
+        var n1 = blobs[p2.a].name, n2 = blobs[p2.b].name;
+        keepApart(p2.key);
+        reply('Kept "' + n1 + '" and "' + n2 + '" apart (refusal recorded).', 'ok'); return;
+      }
+      if ((m = /^split(?:\s+(.+?))?(?:\s+out)?$/i.exec(t))) {
+        var sid = m[1] ? need(m[1]) : selected;
+        if (!sid) { if (!m[1]) reply('Say which orb to split, e.g. "split take1".', 'ask'); return; }
+        var c = split(sid), sev = events[events.length - 1];
+        reply('Split "' + blobs[c].name + '" out of "' + blobs[sev.parent].name + '" (' + fmtBytes(sev.childMass) + ' moved).', 'ok'); return;
+      }
+      if (/^(undo|undo that|take that back|go back)$/.test(lc)) { var u = undo(); reply(u.msg, u.ok ? 'ok' : 'err'); return; }
+      if ((m = /^(?:open|show|select|inspect|look at)\s+(.+)$/i.exec(t))) {
+        var oid = need(m[1]); if (!oid) return;
+        noteUsage('open', oid, via);
+        select(oid);
+        var ob = blobs[oid];
+        if (isZorb(oid)) reply('Opened zorb "' + ob.name + '": ' + ob.entries.length + ' files (' + ob.entries.map(function (e) { return e.name; }).join(', ') + '). Say "unpack ' + stripExt(ob.name) + '" to copy them into a new folder.', 'ok');
+        else if (ob.type === 'dir') reply('Opened "' + ob.name + '": ' + (ob.children.length ? ob.children.length + ' items (' + ob.children.map(function (x) { return blobs[x].name; }).join(', ') + ')' : 'empty') + '.', 'ok');
+        else reply('Opened "' + ob.name + '" (' + ob.kind + ', ' + fmtBytes(ob.size) + ').', 'ok');
+        return;
+      }
+      if ((m = /^(?:play|listen to)(?:\s+(.+))?$/i.exec(t))) {
+        var pid = m[1] ? need(m[1]) : selected;
+        if (!pid) { if (!m[1]) reply('Say what to play, e.g. "play song1".', 'ask'); return; }
+        var pr = play(pid); reply(pr.msg, pr.ok ? 'ok' : 'err'); return;
+      }
+      if ((m = /^rename\s+(.+?)\s+(?:to|as)\s+(.+)$/i.exec(t))) {
+        var rid = need(m[1]); if (!rid) return;
+        var oldN = blobs[rid].name, k0 = kindOf(rid);
+        if (!rename(rid, unquote(m[2]))) { reply('"' + oldN + '" already has that name.', 'err'); return; }
+        reply('Renamed "' + oldN + '" to "' + blobs[rid].name + '" (still ' + k0 + ').', 'ok'); return;
+      }
+      if ((m = /^tag\s+(.+?)\s+(?:with|as)\s+(.+)$/i.exec(t))) {
+        var tid = need(m[1]); if (!tid) return;
+        var tg = unquote(m[2]);
+        if (!addTag(tid, tg)) { reply('"' + blobs[tid].name + '" already has the tag "' + tg + '".', 'err'); return; }
+        reply('Tagged "' + blobs[tid].name + '" with "' + tg + '".', 'ok'); return;
+      }
+      if ((m = /^(?:new|create|make)\s+(?:a\s+)?(?:new\s+)?(?:folder|directory|dir)(?:\s+(?:called|named))?(?:\s+(.+))?$/i.exec(t))) {
+        var fid = newFolder(m[1] ? unquote(m[1]) : '');
+        reply('Created folder "' + blobs[fid].name + '". Say "undo" to remove it.', 'ok'); return;
+      }
+      if ((m = /^(?:unpack|unzip|extract)(?:\s+(.+?))?(?:\s+into\s+(?:a\s+)?(?:new\s+)?folder(?:\s+orb)?)?$/i.exec(t))) {
+        var zid = m[1] ? need(m[1], isZorb, 'a zip') : (isZorb(selected) ? selected : null);
+        if (!zid) { if (!m[1]) reply('Say which zip to unpack, e.g. "unpack stems".', 'ask'); return; }
+        var zn = blobs[zid].name, did = unpack(zid);
+        reply('Unpacked "' + zn + '" into new folder "' + blobs[did].name + '" (' + blobs[did].children.length + ' files). The zip is unchanged.', 'ok'); return;
+      }
+      if (/^save( orb| the orb| it)?$/.test(lc)) { reply(onSave(), 'ok'); return; }
+      if (/^export( history| the history| log| the log)?$/.test(lc)) { reply(exportHistory(), 'ok'); return; }
+      if ((m = /^zoom(?:\s+(in|out|reset|fit|normal))?(?:\s+(?:on|to|into)?\s*(.+))?$/i.exec(t))) {
+        var how = (m[1] || '').toLowerCase();
+        if (m[2] && !how) {
+          var zo = need(m[2]); if (!zo) return;
+          var top = blobs[topAncestor(zo)];
+          zoomTo(Math.max(view.z, 1.8), top.x, top.y); select(zo);
+          reply('Zoomed to "' + blobs[zo].name + '" (' + Math.round(view.z * 100) + '%). Say "zoom reset" to go back.', 'ok'); return;
+        }
+        if (how === 'in') zoomTo(view.z * 1.25);
+        else if (how === 'out') zoomTo(view.z / 1.25);
+        else if (how) zoomTo(1);
+        else { reply('Say "zoom in", "zoom out", "zoom reset" or "zoom <name>".', 'ask'); return; }
+        reply('Zoom ' + Math.round(view.z * 100) + '%.', 'ok'); return;
+      }
+      if (/^(close|close it|close panel|close that|close the panel|done|dismiss)$/.test(lc)) { helpEl.hidden = true; select(null); reply('Closed.', 'ok'); return; }
+      reply('Sorry, I did not understand "' + t + '". Say "what can I say?" for the list.', 'err');
+    } catch (err) {
+      reply('Could not do that: ' + err.message, 'err');
+    }
+  }
+
+  // ---------- voice: Web Speech API only where it exists (Chrome / Edge) ----------
+  function setupMic() {
+    var btn = document.getElementById('btnMic'), wrap = document.getElementById('micWrap');
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      btn.disabled = true;
+      btn.title = wrap.title = 'Voice works in Chrome or Edge; typing works everywhere';
+      return;
+    }
+    btn.title = 'Speak a command (en-US)';
+    var rec = null;
+    btn.addEventListener('click', function () {
+      if (rec) { try { rec.stop(); } catch (err) { /* already stopped */ } return; }
+      try {
+        rec = new SR();
+        rec.lang = 'en-US'; rec.interimResults = false; rec.maxAlternatives = 1; rec.continuous = false;
+        rec.onresult = function (e) {
+          var tr = e.results && e.results[0] && e.results[0][0] ? e.results[0][0].transcript : '';
+          cmdEl.value = tr;
+          runCommand(tr, 'voice');
+        };
+        rec.onerror = function (e) {
+          var why = e.error === 'not-allowed' ? 'microphone permission was denied' : (e.error === 'network' ? 'the speech service could not be reached' : (e.error === 'no-speech' ? 'no speech heard' : e.error));
+          reply('Voice: ' + why + '. Typing works too.', 'err');
+        };
+        rec.onend = function () { rec = null; btn.classList.remove('listening'); };
+        rec.start();
+        btn.classList.add('listening');
+        reply('Listening… say a command.', 'ask');
+      } catch (err) { rec = null; btn.classList.remove('listening'); reply('Voice could not start: ' + err.message, 'err'); }
+    });
   }
 
   // ---------- sample disk ----------
@@ -655,13 +1633,27 @@
     createFile('photo2', 'image', 2800000, ['vacation', '2024']);
     createFile('song1', 'audio', 800000, ['berlin-set', 'demo']);
     createFile('notes', 'text', 12000, ['work']);
+    // the zorb: a zip whose entries are listed, not extracted; two entries share a basename to show disambiguation on unpack
+    var stems = [
+      { name: 'kick.wav', kind: 'audio', size: 1250000 },
+      { name: 'bass.wav', kind: 'audio', size: 1480000 },
+      { name: 'alt/kick.wav', kind: 'audio', size: 1190000 },
+      { name: 'lyrics.txt', kind: 'text', size: 4200 },
+      { name: 'artwork.png', kind: 'image', size: 520000 }
+    ];
+    createFile('stems.zip', 'zip', stems.reduce(function (s, e) { return s + e.size; }, 0), ['stems'], null, stems);
+    order.forEach(function (id) { if (blobs[id].type === 'file') blobs[id].src = 'sample:' + blobs[id].name; });
   }
 
   function init() {
     stage = document.getElementById('stage');
+    world = document.getElementById('world');
     panel = document.getElementById('panel');
     msgEl = document.getElementById('msg');
     statusEl = document.getElementById('status');
+    replyEl = document.getElementById('reply');
+    helpEl = document.getElementById('helpBox');
+    cmdEl = document.getElementById('cmd');
     try {
       computeBounds();
       sampleDisk();
@@ -670,11 +1662,23 @@
       stage.addEventListener('pointermove', onPointerMove);
       stage.addEventListener('pointerup', onPointerUp);
       stage.addEventListener('pointercancel', onPointerCancel);
+      stage.addEventListener('dragover', onDragOver);
+      stage.addEventListener('drop', onDrop);
       document.getElementById('btnNew').addEventListener('click', onNew);
       document.getElementById('btnSplit').addEventListener('click', onSplit);
       document.getElementById('btnSave').addEventListener('click', onSave);
       document.getElementById('btnRename').addEventListener('click', onRename);
       document.getElementById('btnTag').addEventListener('click', onTag);
+      document.getElementById('btnUndo').addEventListener('click', onUndo);
+      document.getElementById('btnExport').addEventListener('click', function () { reply(exportHistory(), 'ok'); });
+      // file pickers open only from these real button clicks, never from a typed or spoken command
+      [['btnImportFolder', 'inFolder'], ['btnAddFiles', 'inFiles'], ['btnOpenOrb', 'inOrb']].forEach(function (pair) {
+        var btn = document.getElementById(pair[0]);
+        btn.addEventListener('click', function () { btn.classList.remove('pulse'); document.getElementById(pair[1]).click(); });
+      });
+      document.getElementById('inFolder').addEventListener('change', onFolderChosen);
+      document.getElementById('inFiles').addEventListener('change', onFilesChosen);
+      document.getElementById('inOrb').addEventListener('change', onOrbChosen);
       document.getElementById('pendingList').addEventListener('click', function (e) {
         var acc = e.target.closest('[data-accept]'), ref = e.target.closest('[data-refuse]');
         try {
@@ -683,10 +1687,23 @@
         } catch (err) { setStatus('Error: ' + err.message); }
       });
       document.getElementById('inspector').addEventListener('click', function (e) {
-        var s = e.target.closest('[data-select]');
-        if (s) select(s.getAttribute('data-select'));
+        var s = e.target.closest('[data-select]'), up = e.target.closest('[data-unpack]'), pl = e.target.closest('[data-play]');
+        try {
+          if (s) select(s.getAttribute('data-select'));
+          if (up) {
+            var zid = up.getAttribute('data-unpack'), zn = blobs[zid].name, d = unpack(zid);
+            var msg = 'Unpacked "' + zn + '" into new folder "' + blobs[d].name + '". The zip is unchanged.';
+            setStatus(msg); reply(msg, 'ok');
+          }
+          if (pl) { var r = play(pl.getAttribute('data-play')); reply(r.msg, r.ok ? 'ok' : 'err'); }
+        } catch (err) { setStatus('Error: ' + err.message); }
       });
+      cmdEl.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); runCommand(cmdEl.value, 'typed'); cmdEl.select(); }
+      });
+      setupMic();
       window.addEventListener('resize', onResize);
+      applyView();
       structureChanged();
       setStatus('BlobFS 2D ready: ' + topLevel().length + ' orbs, ' + order.length + ' blobs.');
       window.requestAnimationFrame(tick);
@@ -701,10 +1718,14 @@
     blobs: blobs, events: events,
     pending: function () { return pending.slice(); },
     topLevel: topLevel, massOf: massOf, kindOf: kindOf, radiusOf: radiusOf,
-    byName: function (n) { for (var i = 0; i < order.length; i++) if (blobs[order[i]].name === n) return order[i]; return null; },
+    byName: function (n) { for (var i = 0; i < order.length; i++) if (blobs[order[i]].name === n && isLive(order[i])) return order[i]; return null; },
     resolveDrop: function (a, b) { return resolveDrop(a, b); },
     split: function (id) { return split(id); },
-    accept: acceptSuggestion, keepApart: keepApart, rename: rename, tag: addTag, select: select, snapshot: snapshot
+    accept: acceptSuggestion, keepApart: keepApart, rename: rename, tag: addTag, select: select, snapshot: snapshot,
+    unpack: unpack, undo: undo, run: function (t) { runCommand(t, 'api'); return replyEl.textContent; },
+    resolveName: resolveName, view: function () { return { z: view.z, tx: view.tx, ty: view.ty }; }, loadOrb: loadOrb,
+    buildOrb: buildOrb, sha256: sha256, sha256js: function (u8) { return hex(sha256js(u8)); }, useJsSha: function (on) { forceJsSha = !!on; },
+    undoDepth: function () { return undoStack.length; }, lastLoad: function () { return lastLoad; }, zip32Check: zip32Check, addFiles: function (fs) { return addFiles(fs, 'files'); }
   };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

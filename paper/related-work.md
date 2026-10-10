@@ -73,6 +73,10 @@ The table compares what "merge" means in each system.
 
 What BlobFS adds: Git and Irmin reconcile versions of the same content, while BlobFS joins different objects into a new grouping. Neither records a refused merge or gates merges by kind of file. Overlayfs gives the sharpest contrast: its merge is a view that vanishes on unmount, while a BlobFS merge is stored and stays in the history until a later event undoes it.
 
+**Ori grafting (Mashtizadeh et al., SOSP 2013).** Ori is a peer-to-peer FUSE file system that stores whole-file-system history, replicates it, and supports grafting: copy a subtree between file systems while preserving history, with later two-way re-sync. It is the closest storage-side neighbour found in the 2026-10-10 pass. Distinction: Ori grafts and shares directory history across devices and merges diverging replicas (three-way where possible). It does not fuse two distinct user objects into a new kind-typed container, does not log refused merges, and has no human-only commit gate for physics-proposed merges. Place it next to Git and Irmin in the related-work story.
+
+**Refuse / fork at the app layer (optional).** *Merge What You Can, Fork What You Can't* (PaPoC 2022) argues that when automatic merge would break integrity, fork histories and keep both visible, with manual reconcile as a new event. That supports BlobFS's "refuse is first-class" framing at the application or data layer, not as a personal file-format primitive. Do not overclaim it as a file-system prior.
+
 ## Recent neighbours (novelty search, 2026)
 
 Four recent systems were checked against the novelty claim. None makes fusion of distinct objects into a stored container the primitive.
@@ -105,10 +109,13 @@ Claims to avoid, and why:
 | Better than folders | No user evidence yet, and the folder literature points the other way |
 | 3D improves memory | Cockburn and McKenzie (2002) found 3D slowed retrieval |
 
-## Search still to do before submission
+## Search status before submission (updated 2026-10-10)
 
-- A structured search of the ACM Digital Library and IEEE Xplore on merge, fuse, pile and grouping combined with file system and history, plus a patent check. One patent on organising display objects already came up in passing (US20090307623A1) and should be read.
-- Note: ACM went fully open access on 1 January 2026, so dl.acm.org is now free to read without institutional login. IEEE Xplore full text still needs a subscription, but abstracts are free and Google Scholar links to author-uploaded PDFs.
+- Patent check done: BumpTop is granted as US8402382B2 (pub. 2013-03-19; application US20090307623A1). Claims cover a physics desktop, piles, and gestural pile create/browse. Scope is interface and visualisation of display objects, not a storage format that records merge or refuse events or kind-typed fusion of payloads.
+- Closest storage-side neighbour added above (merge section): Ori (SOSP 2013) grafting with history. ContextFS/AgentVFS is a lower-priority 2020s CAS neighbour (agent working trees, not personal-file fusion).
+- Optional app-layer prior for refuse/fork: *Merge What You Can, Fork What You Can't* (PaPoC 2022). Local-first app state, not a file system.
+- ACM DL structured sweep still useful; IEEE Xplore full text was not opened (subscription). Abstracts via Scholar remain a final-pass help.
+- Novelty line after this pass still holds: no prior system found that combines (1) kind-typed fusion of distinct objects into a new stored container, (2) refused merges recorded as events, (3) propose-only / human commit at the storage layer, (4) self-describing per-object archive with content-addressed payloads.
 
 ## Suggested experiment
 
@@ -166,4 +173,6 @@ Added from the 2026 novelty search:
 22. Shi, Z., Mei, K., Su, Y., Zuo, C., Hua, W., Xu, W., Ren, Y., Liu, Z., Du, M. and Deng, D. and Zhang, Y. From Commands to Prompts: LLM-based Semantic File System for AIOS. arXiv:2410.11843, ICLR 2025.
 23. Jain, I. et al. llama-fs: A self-organizing file system with llama 3. GitHub: iyaja/llama-fs, 2024.
 24. Bloehdorn, S., Görlitz, O., Schenk, S. and Völkel, M. TagFS: Tag Semantics for Hierarchical File Systems. I-KNOW 2006.
-25. Agarawala, A. and Balakrishnan, R. US20090307623A1, System for organizing and visualizing display objects. Filed April 2007, assigned to Google. (BumpTop patent; covers the interface side of piling, not the storage side.)
+25. Agarawala, A. et al. US8402382B2, System for organizing and visualizing display objects. Filed 2007-04-18 (provisional 60/793,630, 2006-04-21); granted 2013-03-19; assignee Google Inc. Application US20090307623A1 (pub. 2009-12-10). Claims cover a physics desktop, piles, and gestural pile create/browse; interface and visualisation of display objects, not storage fusion. (Was cited as the application number only; upgraded after the 2026-10-10 patent check.)
+26. Mashtizadeh, A., Bittau, A., Huang, Y. F. and Mazières, D. Replication, history, and grafting in the Ori file system. SOSP 2013. https://doi.org/10.1145/2517349.2522721
+27. *Merge What You Can, Fork What You Can't.* PaPoC 2022 (riffle.systems). Optional cite for refuse/fork as an app-level prior; not a file system.

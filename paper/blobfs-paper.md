@@ -1,10 +1,10 @@
-# BlobFS: A Self-Organizing File System Where Merge Is a Storage Operation
+# BlobFS: Kind-Typed Fusion of Distinct Objects as a Recorded, Human-Committed Storage Event
 
 **Kenneth S.**
 
 ## Abstract
 
-BlobFS is a file system where files are living blobs that attract, merge, and split. The contribution is narrow and specific: merge is a storage operation of the format itself, not a view in the interface. Two different objects fuse into a new container under kind-typed rules; the merge is stored with an append-only event log; a refused merge is recorded rather than erased; and the system may only propose while a person commits. The .orb format stores real payloads deduplicated by SHA-256 hash. orb.py, a stdlib Python reference written to the shipped format, and the browser loader agree on all 22 blob and 20 object hashes of demo.orb, and files written by each open in the other. We do not claim BlobFS beats folders: the personal-file literature strongly favors browsing, and BlobFS builds nesting rather than removing it. We present the format, the merge rules, the test results, and a planned user study comparing BlobFS in 3D, BlobFS in 2D, and ordinary folders.
+BlobFS is a file system where files are living blobs that attract, merge, and split. The contribution is narrow and specific. Merging as a recorded storage operation is not new (Git, Irmin, Ficus and Coda all do forms of it); to our knowledge, no prior system combines four things: (1) kind-typed fusion of distinct objects into a new stored container, (2) refused merges recorded as events, (3) propose-only operation with a human commit enforced at the storage layer, and (4) a self-describing per-object archive with content-addressed payloads. The .orb format stores real payloads deduplicated by SHA-256 hash. orb.py, a stdlib Python reference written to the shipped format, and the browser loader agree on all 22 blob and 20 object hashes of demo.orb, and files written by each open in the other. We do not claim BlobFS beats folders: the personal-file literature strongly favors browsing, and BlobFS builds nesting rather than removing it. We present the format, the merge rules, and the test results; a user study comparing BlobFS in 3D, BlobFS in 2D, and ordinary folders is planned future work and has not been run.
 
 ## 1. Introduction
 
@@ -12,7 +12,7 @@ Folders are a filing-cabinet metaphor from the eighties. They work because the s
 
 BlobFS inverts the relationship. Files are blobs with mass, kind, and tags. Similar files attract each other; when they touch, the format proposes a merge; a person confirms or refuses; and the result is a new stored object with history. The disk organizes itself around what you actually do, and every fusion is reversible.
 
-The contribution is not 3D, not physics, and not self-organization on its own — all of those have ancestors. It is the combination: kind-typed fusion of distinct objects as a stored operation, refusals recorded alongside accepts, and a human commit gate enforced by the format.
+The contribution is not 3D, not physics, not self-organization, and not merge as a storage operation on its own — all of those have ancestors (fsn, BumpTop, Piles, Git, Irmin, Ficus, Coda). The claim is narrow: to our knowledge, no prior system combines (1) kind-typed fusion of distinct objects into a new stored container, (2) refused merges recorded as events, (3) propose-only operation with a human commit at the storage layer, and (4) a self-describing per-object archive with content-addressed payloads.
 
 ## 2. Related Work
 
@@ -32,15 +32,15 @@ Semantic File Systems [Gifford et al. 1991], Lifestreams [Fertig et al. 1996], P
 
 ### 2.4 Storage side: hashes, logs, and history
 
-Venti [Quinlan and Dorward 2002] identified blocks by content hash — write-once, deduplicated. The Elephant file system [Santry et al. 1999] kept old versions for undo. Event sourcing rebuilds state by replaying an append-only log. The .orb format uses all three, but what is new is what the log records: accepted merges, refused merges, splits, and unmerges as first-class events.
+Venti [Quinlan and Dorward 2002] identified blocks by content hash — write-once, deduplicated — and Fossil [Quinlan, McKie and Cox] layered a snapshotting Plan 9 file server over it; Data Domain [Zhu, Li and Patterson 2008] made hash-based deduplication fast at backup scale. The .orb store borrows the idea, not the scale: it dedups whole payloads per archive. The Elephant file system [Santry et al. 1999] and CVFS [Soules et al. 2003] kept old versions; they record versions of one file, not fusions of different ones. PASS [Muniswamy-Reddy et al. 2006] records provenance automatically in storage; the .orb log is closer to a user-decision log than to lineage capture. Event sourcing rebuilds state by replaying an append-only log. The .orb format uses these parts; what is new is what the log records: accepted merges, refused merges, splits, and unmerges as first-class events.
 
 ### 2.5 Merge as a storage operation
 
-Git merge commits and git revert already make merge a recorded, reversible storage operation. Irmin [Farinier et al. 2015] generalizes it to typed data structures with three-way merge. Perkeep has content-addressed blobs but no merge operation. overlayfs merges directories as a view that vanishes on unmount. The line to draw: Git and Irmin reconcile versions of the same content; BlobFS fuses different objects into a new container. Neither records refusals nor gates merges by kind.
+Git merge commits and git revert already make merge a recorded, reversible storage operation. Irmin [Farinier et al. 2015] generalizes it to typed data structures with three-way merge. Ficus [Reiher et al. 1994] and Coda [Kumar and Satyanarayanan 1995] go further at the file-system layer, selecting type-specific resolvers by file name or rule to merge conflicting replicas automatically; Harmony [Foster et al. 2007] uses schemas to synchronize replicas of structured data. All of these merge versions of the same object; BlobFS merges different objects into a new container. Perkeep has content-addressed blobs but no merge operation. overlayfs and Unionfs [Wright et al. 2006] merge directories as a namespace view over unchanged branches. None records refusals, gates merges by kind, or limits the system to proposing. The closest prior on the human-commit axis is YoloFS [Zhong et al. 2026, ref. 36], which stages file-system mutations made by AI agents until a person commits them, with snapshots, undo, and access gates; it does not fuse distinct objects, log refused merges, or gate by kind.
 
 ### 2.6 Recent neighbours
 
-SYSSPEC (FAST 2025) generates file system code from formal specs — it builds systems, it does not organize files. LSFS (ICLR 2025) is an LLM-based semantic file system with a group-by syscall — it groups by query, not by contact. LlamaFS (2024) renames and categorizes files by content with accept-or-reject suggestions — it organizes, it does not fuse. TagFS (2006) makes directories dynamic views over tags — a view layer, not a storage operation. None makes fusion of distinct objects into a stored container the primitive.
+SYSSPEC (FAST 2026) generates file system code from formal specs — it builds systems, it does not organize files. LSFS (ICLR 2025) is an LLM-based semantic file system with a group-by syscall — it groups by query, not by contact. LlamaFS (2024) renames and categorizes files by content with accept-or-reject suggestions — it organizes, it does not fuse. TagFS (2006) makes directories dynamic views over tags — a view layer, not a storage operation. None makes fusion of distinct objects into a stored container the primitive.
 
 ## 3. The .orb Format
 
@@ -82,24 +82,42 @@ The test suite covers the rules directly:
 
 Browser page: 73 automated Playwright checks of blobfs-2d.html, run headless in Chromium and Firefox from a local file, passed in both with zero console errors. They cover rendering, the command bar, merge rules including directory union and its undo, kind gate, undo-as-event, local use-log events, zorb unpack, .orb save/open round-trip with SHA-256 checks in Python, the undo stack and pending suggestions surviving save and reopen (undo after reopen restores both directories; a reopened suggestion can be accepted or refused), dropped files stored and reopened byte-exact, and the refusal of files of 4 GiB or more.
 
-[TODO: total test count, per-row numbers, runtime, open time against event count.]
+Test results (actually run on 2026-10-03):
 
-## 6. Evaluation: Planned User Study
+| Suite | Environment | Result | Runtime |
+|---|---|---|---|
+| Browser page (Playwright) | headless Chromium, local file | 73/73 checks passed; zero console messages, page errors, or network requests | [TODO: not yet recorded: browser-suite runtime] |
+| Browser page (Playwright) | headless Firefox, local file | 73/73 checks passed; zero console messages, page errors, or network requests | [TODO: not yet recorded: browser-suite runtime] |
+| `python -m unittest -v tests.test_crosslang` | Python + Playwright (Chromium and Firefox) | 12/12 passed (9 pure-Python, 3 cross-language) | 19.6 s |
 
-A small study with 12 to 16 people would turn the design paper into a research paper. Each participant uses three interfaces in balanced order: BlobFS in 3D, BlobFS in a flat 2D view of the same format, and an ordinary folder window. The 2D condition separates the effect of the merge operation from the effect of 3D.
+On demo.orb, Python and the page agree on all 22 blob hashes, 20 object hashes, 13 links and 101 records. Across the whole cross-language run the test compared 140 blob hashes, 128 object hashes and 84 links over 8 page runs. A re-run on 2026-10-10 on a machine without Node/Playwright passed the 9 pure-Python tests (the 3 cross-language tests were skipped, not failed).
 
-Procedure: give each participant a realistic set of about 60 files (photos, audio takes, text notes) with a different but comparable set per interface. Ask them to organize however they like, no time pressure. A day later, ask them to find 15 files from short descriptions, timing each search and noting failures. Finish with a questionnaire on effort and ease, and a ten-minute interview.
+Open time against event count. Method: a small script (not in the repo) builds a disk with orb.py of N files of 1 KiB random bytes, merges them pairwise (file+file), saves it, then times `orb.load(path, verify=True)` five times, which reads every entry, checks every CRC-32 and every object's SHA-256, and verifies links and masses. Machine: shared Linux VM, 8 vCPUs reported as "Intel(R) Xeon(R) Processor", 15 GiB RAM, Python 3.13.5, warm page cache. Medians of 5 runs (min–max):
 
-Measure: time and failures when finding files a day later (the main comparison with folders); number of merges, splits, and undos (shows whether people use fusion and how often they reverse it); share of suggested merges accepted (directly comparable with KondoCloud's 25.5%); perceived effort and ease (folders are known to be low-effort, so this is the fair test).
+| Files | Events | Records | .orb size | Open + verify, median (min–max) |
+|---|---|---|---|---|
+| 100 | 150 | 651 | 0.23 MB | 3.8 ms (3.5–11.1) |
+| 1,000 | 1,500 | 6,501 | 2.3 MB | 40.7 ms (35.1–51.5) |
+| 4,000 | 6,000 | 26,001 | 9.3 MB | 193.3 ms (169.8–223.1) |
 
-Practical steps: run a pilot with three people first. The study needs ethics approval from whichever university hosts it; an HCI group would normally handle that.
+demo.orb (101 records) opened and verified in 6.5 ms (single run). Open time grows roughly linearly with record count in this range. These are Python-reference numbers on a shared VM; the browser loader's open time, large payloads, and cold-cache disks are [TODO: not yet measured].
+
+## 6. Future Work: Planned User Study
+
+No user study has been run; this section describes a planned study, and no results are reported or implied. A small study with 12 to 16 people would turn the design paper into a research paper. Each participant would use three interfaces in balanced order: BlobFS in 3D, BlobFS in a flat 2D view of the same format, and an ordinary folder window. The 2D condition separates the effect of the merge operation from the effect of 3D.
+
+Planned procedure: give each participant a realistic set of about 60 files (photos, audio takes, text notes) with a different but comparable set per interface. Ask them to organize however they like, no time pressure. A day later, ask them to find 15 files from short descriptions, timing each search and noting failures. Finish with a questionnaire on effort and ease, and a ten-minute interview.
+
+Planned measures: time and failures when finding files a day later (the main comparison with folders); number of merges, splits, and undos (shows whether people use fusion and how often they reverse it); share of suggested merges accepted (directly comparable with KondoCloud's 25.5%); perceived effort and ease (folders are known to be low-effort, so this is the fair test).
+
+Practical steps (not yet taken): run a pilot with three people first. The study needs ethics approval from whichever university hosts it; an HCI group would normally handle that.
 
 ## 7. Limitations
 
 - No user study yet. The folder literature points the other way on effort, so the study is not optional.
 - The mass constant C is 1 MiB (1,048,576 bytes) in the browser page (`BODY = 1024 * 1024` in blobfs-2d.html, also written into every saved .orb header as `constantMass`). It is a chosen value, not derived or measured. The Python reference orb.py uses the same value (`C = 1048576`) and refuses a file whose header says otherwise.
 - The repulsion coefficient is tuned, not derived.
-- Performance measurements are [TODO: not yet taken].
+- Performance measurements are limited to a small open-time benchmark of the Python reference (Section 5); browser-side, large-payload and cold-cache timings are [TODO: not yet measured].
 - The zip profile has not been formally specified. The page writes uncompressed (STORE) zip32 archives with its own inline writer and reads STORE and DEFLATE (DEFLATE needs the browser's DecompressionStream); orb.py writes STORE zip32 and reads what Python's zipfile reads. The format is strict about what it reads and tolerant about what it writes, but this should be tightened.
 - There is no ZIP64: a single file of 4 GiB or more is refused, and so is a save that would exceed 4 GiB in total or 65,535 entries. Files of the built-in sample disk are synthetic placeholders, marked `"payload":"placeholder"` in the saved records; imported, added and dropped files are stored as their real bytes.
 - The ACM DL sweep is now free (ACM went fully open access January 2026), but the IEEE Xplore full-text sweep still needs access or author PDFs.
@@ -113,11 +131,11 @@ Gaze may later replace the mouse for deictic references, so that "merge this int
 
 ## 8. Conclusion
 
-BlobFS makes merge a storage operation: kind-typed fusion of distinct objects, stored with history, refusals recorded, a human as the one who commits. The format is real — two implementations agree, the tests pass, and the novelty claim survives a literature sweep when worded narrowly. What remains is the user study, the performance numbers, and the paywalled index check. The idea is that a disk should organize itself around what you do, and that nothing you merge should ever be gone for good.
+BlobFS combines kind-typed fusion of distinct objects into a new stored container, refusals recorded as events, a human as the one who commits, and a self-describing archive with content-addressed payloads. The format is real — two implementations agree, the tests pass, and the narrow four-part claim survives a literature sweep. What remains is the user study (future work), browser-side and large-scale performance numbers, and the paywalled index check. The idea is that a disk should organize itself around what you do, and that nothing you merge should ever be gone for good.
 
 ## References
 
-[Full reference list in paper/related-work.md, references 1–25.]
+[Full reference list in paper/related-work.md, references 1–36.]
 
 ---
 

@@ -86,13 +86,14 @@ Test results (actually run on 2026-10-03):
 
 | Suite | Environment | Result | Runtime |
 |---|---|---|---|
-| Browser page (Playwright) | headless Chromium, local file | 73/73 checks passed; zero console messages, page errors, or network requests | [TODO: not yet recorded: browser-suite runtime] |
-| Browser page (Playwright) | headless Firefox, local file | 73/73 checks passed; zero console messages, page errors, or network requests | [TODO: not yet recorded: browser-suite runtime] |
+| Browser page (Playwright) | headless Chromium, local file | 73/73 checks passed; zero console messages, page errors, or network requests | [TODO: not recorded; the 73-check script was not kept and could not be re-run] |
+| Browser page (Playwright) | headless Firefox, local file | 73/73 checks passed; zero console messages, page errors, or network requests | [TODO: not recorded; the 73-check script was not kept and could not be re-run] |
 | `python -m unittest -v tests.test_crosslang` | Python + Playwright (Chromium and Firefox) | 12/12 passed (9 pure-Python, 3 cross-language) | 19.6 s |
+| `python -m unittest -v tests.test_crosslang`, re-run 2026-10-11 | Python 3.13.5, Node 20.19.2, playwright npm package (Chromium, Firefox 157.0) | 12/12 passed (9 pure-Python, 3 cross-language); 140 blob hashes, 128 object hashes, 84 links, 8 page runs | 18.7 s, 17.3 s, 17.1 s (three runs, unittest-reported) |
 
 On demo.orb, Python and the page agree on all 22 blob hashes, 20 object hashes, 13 links and 101 records. Across the whole cross-language run the test compared 140 blob hashes, 128 object hashes and 84 links over 8 page runs. A re-run on 2026-10-10 on a machine without Node/Playwright passed the 9 pure-Python tests (the 3 cross-language tests were skipped, not failed).
 
-Open time against event count. Method: a small script (not in the repo) builds a disk with orb.py of N files of 1 KiB random bytes, merges them pairwise (file+file), saves it, then times `orb.load(path, verify=True)` five times, which reads every entry, checks every CRC-32 and every object's SHA-256, and verifies links and masses. Machine: shared Linux VM, 8 vCPUs reported as "Intel(R) Xeon(R) Processor", 15 GiB RAM, Python 3.13.5, warm page cache. Medians of 5 runs (min–max):
+Open time against event count. Method: a small script builds a disk with orb.py of N files of 1 KiB random bytes, merges them pairwise (file+file), saves it, then times `orb.load(path, verify=True)` five times, which reads every entry, checks every CRC-32 and every object's SHA-256, and verifies links and masses. Machine: shared Linux VM, 8 vCPUs reported as "Intel(R) Xeon(R) Processor", 15 GiB RAM, Python 3.13.5, warm page cache. Medians of 5 runs (min–max):
 
 | Files | Events | Records | .orb size | Open + verify, median (min–max) |
 |---|---|---|---|---|
@@ -100,7 +101,18 @@ Open time against event count. Method: a small script (not in the repo) builds a
 | 1,000 | 1,500 | 6,501 | 2.3 MB | 40.7 ms (35.1–51.5) |
 | 4,000 | 6,000 | 26,001 | 9.3 MB | 193.3 ms (169.8–223.1) |
 
-demo.orb (101 records) opened and verified in 6.5 ms (single run). Open time grows roughly linearly with record count in this range. These are Python-reference numbers on a shared VM; the browser loader's open time, large payloads, and cold-cache disks are [TODO: not yet measured].
+demo.orb (101 records) opened and verified in 6.5 ms (single run). Open time grows roughly linearly with record count in this range. These are Python-reference numbers on a shared VM; the browser loader's open time, large payloads, and cold-cache disks were not measured in this run.
+
+Browser loader and large payload (measured 2026-10-11). Scripts are in bench/ (`bench/run_all.sh`; raw output in bench/results-2026-10-11.txt). The same disks were built with `bench/make_disk.py` (N files of 1 KiB random bytes merged pairwise, plus one disk holding a single 100 MiB random file). `bench/py_open.py` times `orb.load(path, verify=True)`. `bench/page_open.js` loads blobfs-2d.html from a local file in headless Chromium or Firefox (Playwright, Node 20.19.2), clicks the page's own Open .orb button, and times from handing the file to the file chooser until the page reports "Opened … (all SHA-256 hashes verified)", with a fresh page for each run. Same machine as above (shared Linux VM, 8 vCPUs, Python 3.13.5), warm page cache. Medians of 5 runs (min–max), in ms:
+
+| Disk | .orb size | orb.py | Chromium page | Firefox page |
+|---|---|---|---|---|
+| 100 files | 0.23 MB | 3.7 (3.4–5.1) | 47 (39–63) | 29 (19–41) |
+| 1,000 files | 2.3 MB | 34.8 (34.2–45.2) | 384 (346–396) | 198 (185–225) |
+| 4,000 files | 9.3 MB | 155.0 (149.3–179.3) | 3,269 (1,739–5,506) | 1,736 (1,684–1,798) |
+| 1 file, 100 MiB | 104.9 MB | 159.8 (151.9–204.7) | 522 (508–592) | 1,363 (1,348–1,385) |
+
+On many small files the page took about 6 to 21 times as long as orb.py and grows faster than linearly from 1,000 to 4,000 files; Chromium's 4,000-file runs varied by a factor of three on this shared VM. Cold-cache disk timings are [TODO: not yet measured].
 
 ## 6. Future Work: Planned User Study
 
@@ -117,7 +129,7 @@ Practical steps (not yet taken): run a pilot with three people first. The study 
 - No user study yet. The folder literature points the other way on effort, so the study is not optional.
 - The mass constant C is 1 MiB (1,048,576 bytes) in the browser page (`BODY = 1024 * 1024` in blobfs-2d.html, also written into every saved .orb header as `constantMass`). It is a chosen value, not derived or measured. The Python reference orb.py uses the same value (`C = 1048576`) and refuses a file whose header says otherwise.
 - The repulsion coefficient is tuned, not derived.
-- Performance measurements are limited to a small open-time benchmark of the Python reference (Section 5); browser-side, large-payload and cold-cache timings are [TODO: not yet measured].
+- Performance measurements are small open-time benchmarks (Section 5): Python-reference, and 100 MiB timings were measured on one warm-cache VM (Section 5); cold-cache timings are [TODO: not yet measured], and the 73-check browser-suite runtime was never recorded.
 - The zip profile has not been formally specified. The page writes uncompressed (STORE) zip32 archives with its own inline writer and reads STORE and DEFLATE (DEFLATE needs the browser's DecompressionStream); orb.py writes STORE zip32 and reads what Python's zipfile reads. The format is strict about what it reads and tolerant about what it writes, but this should be tightened.
 - There is no ZIP64: a single file of 4 GiB or more is refused, and so is a save that would exceed 4 GiB in total or 65,535 entries. Files of the built-in sample disk are synthetic placeholders, marked `"payload":"placeholder"` in the saved records; imported, added and dropped files are stored as their real bytes.
 - The ACM DL sweep is now free (ACM went fully open access January 2026), but the IEEE Xplore full-text sweep still needs access or author PDFs.
@@ -131,7 +143,7 @@ Gaze may later replace the mouse for deictic references, so that "merge this int
 
 ## 8. Conclusion
 
-BlobFS combines kind-typed fusion of distinct objects into a new stored container, refusals recorded as events, a human as the one who commits, and a self-describing archive with content-addressed payloads. The format is real — two implementations agree, the tests pass, and the narrow four-part claim survives a literature sweep. What remains is the user study (future work), browser-side and large-scale performance numbers, and the paywalled index check. The idea is that a disk should organize itself around what you do, and that nothing you merge should ever be gone for good.
+BlobFS combines kind-typed fusion of distinct objects into a new stored container, refusals recorded as events, a human as the one who commits, and a self-describing archive with content-addressed payloads. The format is real — two implementations agree, the tests pass, and the narrow four-part claim survives a literature sweep. What remains is the user study (future work), cold-cache performance numbers, and the paywalled index check. The idea is that a disk should organize itself around what you do, and that nothing you merge should ever be gone for good.
 
 ## References
 

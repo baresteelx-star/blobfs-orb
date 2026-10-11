@@ -36,7 +36,7 @@ Venti [Quinlan and Dorward 2002] identified blocks by content hash — write-onc
 
 ### 2.5 Merge as a storage operation
 
-Git merge commits and git revert already make merge a recorded, reversible storage operation. Irmin [Farinier et al. 2015] generalizes it to typed data structures with three-way merge. Ficus [Reiher et al. 1994] and Coda [Kumar and Satyanarayanan 1995] go further at the file-system layer, selecting type-specific resolvers by file name or rule to merge conflicting replicas automatically; Harmony [Foster et al. 2007] uses schemas to synchronize replicas of structured data. All of these merge versions of the same object; BlobFS merges different objects into a new container. Perkeep has content-addressed blobs but no merge operation. overlayfs and Unionfs [Wright et al. 2006] merge directories as a namespace view over unchanged branches. None records refusals, gates merges by kind, or limits the system to proposing. The closest prior on the human-commit axis is YoloFS [Zhong et al. 2026, ref. 36], which stages file-system mutations made by AI agents until a person commits them, with snapshots, undo, and access gates; it does not fuse distinct objects, log refused merges, or gate by kind.
+Git merge commits and git revert already make merge a recorded, reversible storage operation. Irmin [Farinier et al. 2015] generalizes it to typed data structures with three-way merge. Ficus [Reiher et al. 1994] and Coda [Kumar and Satyanarayanan 1995] go further at the file-system layer, selecting type-specific resolvers by file name or rule to merge conflicting replicas automatically; Harmony [Foster et al. 2007] uses schemas to synchronize replicas of structured data. FileWeaver [Gori et al. 2020, ref. 37] merges format variants of one file into a polymorphic "morph" and tracks dependencies, but does not fuse distinct objects under kind rules, log refused merges, or gate commits at the storage layer. All of these merge versions of the same object; BlobFS merges different objects into a new container. Perkeep has content-addressed blobs but no merge operation. overlayfs and Unionfs [Wright et al. 2006] merge directories as a namespace view over unchanged branches. None records refusals, gates merges by kind, or limits the system to proposing. The closest prior on the human-commit axis is YoloFS [Zhong et al. 2026, ref. 36], which stages file-system mutations made by AI agents until a person commits them, with snapshots, undo, and access gates; it does not fuse distinct objects, log refused merges, or gate by kind.
 
 ### 2.6 Recent neighbours
 
@@ -147,7 +147,7 @@ BlobFS combines kind-typed fusion of distinct objects into a new stored containe
 
 ## References
 
-[Full reference list in paper/related-work.md, references 1–36.]
+[Full reference list in paper/related-work.md, references 1–37.]
 
 ---
 

@@ -1,0 +1,379 @@
+# node tests/browser_suite.js <browser>, 3 runs per browser, Node 20.19.2, playwright npm (Chromium, Firefox 157.0), shared Linux VM 8 vCPU
+== run 1 chromium 2026-10-11T12:54:26+03:00
+PASS chromium | sample disk loads with status "BlobFS 2D ready"
+PASS chromium | one .orb element per top-level orb (8)
+PASS chromium | zorb stems.zip is rendered with a zipper
+PASS chromium | colour key lists dir, image, audio, text, zip
+PASS chromium | colour key entries each have a swatch
+PASS chromium | colour key labels zip as "zip (zorb)"
+PASS chromium | colour key gains a new kind when a file of that kind is added
+PASS chromium | command "what can I say?" shows the help list
+PASS chromium | unknown command gets a "did not understand" reply
+PASS chromium | command "open stems" lists the zorb entries
+PASS chromium | command "rename notes to memo" keeps the extension-less name and kind
+PASS chromium | command "tag memo with work2" adds the tag
+PASS chromium | command "undo" reverses the tag
+PASS chromium | command "new folder Inbox" creates a folder
+PASS chromium | command "zoom in" increases zoom
+PASS chromium | command "add files" highlights the button and opens no file picker by itself
+PASS chromium | ambiguous name asks which one
+PASS chromium | Covers (image) + Sessions (audio) share a tag: the merge waits as a pending suggestion
+PASS chromium | dir∪dir is committed only on human accept
+PASS chromium | dir∪dir gives ONE directory holding all 4 children
+PASS chromium | dir∪dir absorbs both source directories
+PASS chromium | dir∪dir name clash renamed to 'cover1 (2)'
+PASS chromium | undo of dir∪dir restores both directories with their own children
+PASS chromium | file∪file makes a NEW directory holding both files
+PASS chromium | file∪file directory is named "photo2 + photo1"
+PASS chromium | file∪dir: the directory adopts the file (no new directory)
+PASS chromium | kind gate: different kinds, no shared tag, stay apart
+PASS chromium | physics may propose, never commit
+PASS chromium | unpack reports a new folder with 5 files
+PASS chromium | unpacked folder holds 5 files, duplicate basename disambiguated as "kick (2).wav"
+PASS chromium | the zorb itself is left unchanged on the stage
+PASS chromium | undo of unpack removes the folder
+PASS chromium | dropped files appear as orbs
+PASS chromium | dropped file bytes keep their SHA-256 in the page
+PASS chromium | cross-kind with a shared tag becomes a pending suggestion
+PASS chromium | two pending suggestions before save
+PASS chromium | Save Orb downloads a zip (PK header)
+PASS chromium | orb.py opens and verifies the page-written .orb
+PASS chromium | orb.py reads the dropped files with the same SHA-256
+PASS chromium | orb.py sees the saved undo history and pending suggestions
+PASS chromium | Open .orb reopens with all SHA-256 hashes verified
+PASS chromium | reopen keeps the same top-level orb count
+PASS chromium | undo history depth preserved across save/reopen (6)
+PASS chromium | pending suggestions survive reopen
+PASS chromium | reopened dropped file is byte-exact
+PASS chromium | a reopened suggestion can be accepted
+PASS chromium | a reopened suggestion can be refused
+PASS chromium | undo after reopen restores both directories of the saved dir∪dir merge
+PASS chromium | second save: orb.py and page agree on every blob hash (11)
+PASS chromium | second save reopens cleanly
+PASS chromium | a flipped bit in a payload is refused on open
+PASS chromium | a 4 GiB file is refused with a zip32 message and not added
+PASS chromium | zip32Check accepts a small archive and returns its exact size
+PASS chromium | zip32: a single entry of 4 GiB is rejected
+PASS chromium | zip32: an entry just under 4 GiB still overflows the 32-bit archive and is rejected
+PASS chromium | zip32: two 2 GiB entries are rejected (total over limit)
+PASS chromium | zip32: 65536 entries rejected, 65535 accepted
+PASS chromium | zero console messages
+PASS chromium | zero page errors
+PASS chromium | zero network requests
+{"browser":"chromium","checks":60,"passed":60,"failed":0,"runtime_ms":4577}
+exit=0 wall_ms=5029
+== run 1 firefox 2026-10-11T12:54:31+03:00
+PASS firefox | sample disk loads with status "BlobFS 2D ready"
+PASS firefox | one .orb element per top-level orb (8)
+PASS firefox | zorb stems.zip is rendered with a zipper
+PASS firefox | colour key lists dir, image, audio, text, zip
+PASS firefox | colour key entries each have a swatch
+PASS firefox | colour key labels zip as "zip (zorb)"
+PASS firefox | colour key gains a new kind when a file of that kind is added
+PASS firefox | command "what can I say?" shows the help list
+PASS firefox | unknown command gets a "did not understand" reply
+PASS firefox | command "open stems" lists the zorb entries
+PASS firefox | command "rename notes to memo" keeps the extension-less name and kind
+PASS firefox | command "tag memo with work2" adds the tag
+PASS firefox | command "undo" reverses the tag
+PASS firefox | command "new folder Inbox" creates a folder
+PASS firefox | command "zoom in" increases zoom
+PASS firefox | command "add files" highlights the button and opens no file picker by itself
+PASS firefox | ambiguous name asks which one
+PASS firefox | Covers (image) + Sessions (audio) share a tag: the merge waits as a pending suggestion
+PASS firefox | dir∪dir is committed only on human accept
+PASS firefox | dir∪dir gives ONE directory holding all 4 children
+PASS firefox | dir∪dir absorbs both source directories
+PASS firefox | dir∪dir name clash renamed to 'cover1 (2)'
+PASS firefox | undo of dir∪dir restores both directories with their own children
+PASS firefox | file∪file makes a NEW directory holding both files
+PASS firefox | file∪file directory is named "photo2 + photo1"
+PASS firefox | file∪dir: the directory adopts the file (no new directory)
+PASS firefox | kind gate: different kinds, no shared tag, stay apart
+PASS firefox | physics may propose, never commit
+PASS firefox | unpack reports a new folder with 5 files
+PASS firefox | unpacked folder holds 5 files, duplicate basename disambiguated as "kick (2).wav"
+PASS firefox | the zorb itself is left unchanged on the stage
+PASS firefox | undo of unpack removes the folder
+PASS firefox | dropped files appear as orbs
+PASS firefox | dropped file bytes keep their SHA-256 in the page
+PASS firefox | cross-kind with a shared tag becomes a pending suggestion
+PASS firefox | two pending suggestions before save
+PASS firefox | Save Orb downloads a zip (PK header)
+PASS firefox | orb.py opens and verifies the page-written .orb
+PASS firefox | orb.py reads the dropped files with the same SHA-256
+PASS firefox | orb.py sees the saved undo history and pending suggestions
+PASS firefox | Open .orb reopens with all SHA-256 hashes verified
+PASS firefox | reopen keeps the same top-level orb count
+PASS firefox | undo history depth preserved across save/reopen (6)
+PASS firefox | pending suggestions survive reopen
+PASS firefox | reopened dropped file is byte-exact
+PASS firefox | a reopened suggestion can be accepted
+PASS firefox | a reopened suggestion can be refused
+PASS firefox | undo after reopen restores both directories of the saved dir∪dir merge
+PASS firefox | second save: orb.py and page agree on every blob hash (11)
+PASS firefox | second save reopens cleanly
+PASS firefox | a flipped bit in a payload is refused on open
+PASS firefox | a 4 GiB file is refused with a zip32 message and not added
+PASS firefox | zip32Check accepts a small archive and returns its exact size
+PASS firefox | zip32: a single entry of 4 GiB is rejected
+PASS firefox | zip32: an entry just under 4 GiB still overflows the 32-bit archive and is rejected
+PASS firefox | zip32: two 2 GiB entries are rejected (total over limit)
+PASS firefox | zip32: 65536 entries rejected, 65535 accepted
+PASS firefox | zero console messages
+PASS firefox | zero page errors
+PASS firefox | zero network requests
+{"browser":"firefox","checks":60,"passed":60,"failed":0,"runtime_ms":8953}
+exit=0 wall_ms=9482
+== run 2 chromium 2026-10-11T12:54:40+03:00
+PASS chromium | sample disk loads with status "BlobFS 2D ready"
+PASS chromium | one .orb element per top-level orb (8)
+PASS chromium | zorb stems.zip is rendered with a zipper
+PASS chromium | colour key lists dir, image, audio, text, zip
+PASS chromium | colour key entries each have a swatch
+PASS chromium | colour key labels zip as "zip (zorb)"
+PASS chromium | colour key gains a new kind when a file of that kind is added
+PASS chromium | command "what can I say?" shows the help list
+PASS chromium | unknown command gets a "did not understand" reply
+PASS chromium | command "open stems" lists the zorb entries
+PASS chromium | command "rename notes to memo" keeps the extension-less name and kind
+PASS chromium | command "tag memo with work2" adds the tag
+PASS chromium | command "undo" reverses the tag
+PASS chromium | command "new folder Inbox" creates a folder
+PASS chromium | command "zoom in" increases zoom
+PASS chromium | command "add files" highlights the button and opens no file picker by itself
+PASS chromium | ambiguous name asks which one
+PASS chromium | Covers (image) + Sessions (audio) share a tag: the merge waits as a pending suggestion
+PASS chromium | dir∪dir is committed only on human accept
+PASS chromium | dir∪dir gives ONE directory holding all 4 children
+PASS chromium | dir∪dir absorbs both source directories
+PASS chromium | dir∪dir name clash renamed to 'cover1 (2)'
+PASS chromium | undo of dir∪dir restores both directories with their own children
+PASS chromium | file∪file makes a NEW directory holding both files
+PASS chromium | file∪file directory is named "photo2 + photo1"
+PASS chromium | file∪dir: the directory adopts the file (no new directory)
+PASS chromium | kind gate: different kinds, no shared tag, stay apart
+PASS chromium | physics may propose, never commit
+PASS chromium | unpack reports a new folder with 5 files
+PASS chromium | unpacked folder holds 5 files, duplicate basename disambiguated as "kick (2).wav"
+PASS chromium | the zorb itself is left unchanged on the stage
+PASS chromium | undo of unpack removes the folder
+PASS chromium | dropped files appear as orbs
+PASS chromium | dropped file bytes keep their SHA-256 in the page
+PASS chromium | cross-kind with a shared tag becomes a pending suggestion
+PASS chromium | two pending suggestions before save
+PASS chromium | Save Orb downloads a zip (PK header)
+PASS chromium | orb.py opens and verifies the page-written .orb
+PASS chromium | orb.py reads the dropped files with the same SHA-256
+PASS chromium | orb.py sees the saved undo history and pending suggestions
+PASS chromium | Open .orb reopens with all SHA-256 hashes verified
+PASS chromium | reopen keeps the same top-level orb count
+PASS chromium | undo history depth preserved across save/reopen (6)
+PASS chromium | pending suggestions survive reopen
+PASS chromium | reopened dropped file is byte-exact
+PASS chromium | a reopened suggestion can be accepted
+PASS chromium | a reopened suggestion can be refused
+PASS chromium | undo after reopen restores both directories of the saved dir∪dir merge
+PASS chromium | second save: orb.py and page agree on every blob hash (11)
+PASS chromium | second save reopens cleanly
+PASS chromium | a flipped bit in a payload is refused on open
+PASS chromium | a 4 GiB file is refused with a zip32 message and not added
+PASS chromium | zip32Check accepts a small archive and returns its exact size
+PASS chromium | zip32: a single entry of 4 GiB is rejected
+PASS chromium | zip32: an entry just under 4 GiB still overflows the 32-bit archive and is rejected
+PASS chromium | zip32: two 2 GiB entries are rejected (total over limit)
+PASS chromium | zip32: 65536 entries rejected, 65535 accepted
+PASS chromium | zero console messages
+PASS chromium | zero page errors
+PASS chromium | zero network requests
+{"browser":"chromium","checks":60,"passed":60,"failed":0,"runtime_ms":4497}
+exit=0 wall_ms=4971
+== run 2 firefox 2026-10-11T12:54:45+03:00
+PASS firefox | sample disk loads with status "BlobFS 2D ready"
+PASS firefox | one .orb element per top-level orb (8)
+PASS firefox | zorb stems.zip is rendered with a zipper
+PASS firefox | colour key lists dir, image, audio, text, zip
+PASS firefox | colour key entries each have a swatch
+PASS firefox | colour key labels zip as "zip (zorb)"
+PASS firefox | colour key gains a new kind when a file of that kind is added
+PASS firefox | command "what can I say?" shows the help list
+PASS firefox | unknown command gets a "did not understand" reply
+PASS firefox | command "open stems" lists the zorb entries
+PASS firefox | command "rename notes to memo" keeps the extension-less name and kind
+PASS firefox | command "tag memo with work2" adds the tag
+PASS firefox | command "undo" reverses the tag
+PASS firefox | command "new folder Inbox" creates a folder
+PASS firefox | command "zoom in" increases zoom
+PASS firefox | command "add files" highlights the button and opens no file picker by itself
+PASS firefox | ambiguous name asks which one
+PASS firefox | Covers (image) + Sessions (audio) share a tag: the merge waits as a pending suggestion
+PASS firefox | dir∪dir is committed only on human accept
+PASS firefox | dir∪dir gives ONE directory holding all 4 children
+PASS firefox | dir∪dir absorbs both source directories
+PASS firefox | dir∪dir name clash renamed to 'cover1 (2)'
+PASS firefox | undo of dir∪dir restores both directories with their own children
+PASS firefox | file∪file makes a NEW directory holding both files
+PASS firefox | file∪file directory is named "photo2 + photo1"
+PASS firefox | file∪dir: the directory adopts the file (no new directory)
+PASS firefox | kind gate: different kinds, no shared tag, stay apart
+PASS firefox | physics may propose, never commit
+PASS firefox | unpack reports a new folder with 5 files
+PASS firefox | unpacked folder holds 5 files, duplicate basename disambiguated as "kick (2).wav"
+PASS firefox | the zorb itself is left unchanged on the stage
+PASS firefox | undo of unpack removes the folder
+PASS firefox | dropped files appear as orbs
+PASS firefox | dropped file bytes keep their SHA-256 in the page
+PASS firefox | cross-kind with a shared tag becomes a pending suggestion
+PASS firefox | two pending suggestions before save
+PASS firefox | Save Orb downloads a zip (PK header)
+PASS firefox | orb.py opens and verifies the page-written .orb
+PASS firefox | orb.py reads the dropped files with the same SHA-256
+PASS firefox | orb.py sees the saved undo history and pending suggestions
+PASS firefox | Open .orb reopens with all SHA-256 hashes verified
+PASS firefox | reopen keeps the same top-level orb count
+PASS firefox | undo history depth preserved across save/reopen (6)
+PASS firefox | pending suggestions survive reopen
+PASS firefox | reopened dropped file is byte-exact
+PASS firefox | a reopened suggestion can be accepted
+PASS firefox | a reopened suggestion can be refused
+PASS firefox | undo after reopen restores both directories of the saved dir∪dir merge
+PASS firefox | second save: orb.py and page agree on every blob hash (11)
+PASS firefox | second save reopens cleanly
+PASS firefox | a flipped bit in a payload is refused on open
+PASS firefox | a 4 GiB file is refused with a zip32 message and not added
+PASS firefox | zip32Check accepts a small archive and returns its exact size
+PASS firefox | zip32: a single entry of 4 GiB is rejected
+PASS firefox | zip32: an entry just under 4 GiB still overflows the 32-bit archive and is rejected
+PASS firefox | zip32: two 2 GiB entries are rejected (total over limit)
+PASS firefox | zip32: 65536 entries rejected, 65535 accepted
+PASS firefox | zero console messages
+PASS firefox | zero page errors
+PASS firefox | zero network requests
+{"browser":"firefox","checks":60,"passed":60,"failed":0,"runtime_ms":8981}
+exit=0 wall_ms=9501
+== run 3 chromium 2026-10-11T12:54:55+03:00
+PASS chromium | sample disk loads with status "BlobFS 2D ready"
+PASS chromium | one .orb element per top-level orb (8)
+PASS chromium | zorb stems.zip is rendered with a zipper
+PASS chromium | colour key lists dir, image, audio, text, zip
+PASS chromium | colour key entries each have a swatch
+PASS chromium | colour key labels zip as "zip (zorb)"
+PASS chromium | colour key gains a new kind when a file of that kind is added
+PASS chromium | command "what can I say?" shows the help list
+PASS chromium | unknown command gets a "did not understand" reply
+PASS chromium | command "open stems" lists the zorb entries
+PASS chromium | command "rename notes to memo" keeps the extension-less name and kind
+PASS chromium | command "tag memo with work2" adds the tag
+PASS chromium | command "undo" reverses the tag
+PASS chromium | command "new folder Inbox" creates a folder
+PASS chromium | command "zoom in" increases zoom
+PASS chromium | command "add files" highlights the button and opens no file picker by itself
+PASS chromium | ambiguous name asks which one
+PASS chromium | Covers (image) + Sessions (audio) share a tag: the merge waits as a pending suggestion
+PASS chromium | dir∪dir is committed only on human accept
+PASS chromium | dir∪dir gives ONE directory holding all 4 children
+PASS chromium | dir∪dir absorbs both source directories
+PASS chromium | dir∪dir name clash renamed to 'cover1 (2)'
+PASS chromium | undo of dir∪dir restores both directories with their own children
+PASS chromium | file∪file makes a NEW directory holding both files
+PASS chromium | file∪file directory is named "photo2 + photo1"
+PASS chromium | file∪dir: the directory adopts the file (no new directory)
+PASS chromium | kind gate: different kinds, no shared tag, stay apart
+PASS chromium | physics may propose, never commit
+PASS chromium | unpack reports a new folder with 5 files
+PASS chromium | unpacked folder holds 5 files, duplicate basename disambiguated as "kick (2).wav"
+PASS chromium | the zorb itself is left unchanged on the stage
+PASS chromium | undo of unpack removes the folder
+PASS chromium | dropped files appear as orbs
+PASS chromium | dropped file bytes keep their SHA-256 in the page
+PASS chromium | cross-kind with a shared tag becomes a pending suggestion
+PASS chromium | two pending suggestions before save
+PASS chromium | Save Orb downloads a zip (PK header)
+PASS chromium | orb.py opens and verifies the page-written .orb
+PASS chromium | orb.py reads the dropped files with the same SHA-256
+PASS chromium | orb.py sees the saved undo history and pending suggestions
+PASS chromium | Open .orb reopens with all SHA-256 hashes verified
+PASS chromium | reopen keeps the same top-level orb count
+PASS chromium | undo history depth preserved across save/reopen (6)
+PASS chromium | pending suggestions survive reopen
+PASS chromium | reopened dropped file is byte-exact
+PASS chromium | a reopened suggestion can be accepted
+PASS chromium | a reopened suggestion can be refused
+PASS chromium | undo after reopen restores both directories of the saved dir∪dir merge
+PASS chromium | second save: orb.py and page agree on every blob hash (11)
+PASS chromium | second save reopens cleanly
+PASS chromium | a flipped bit in a payload is refused on open
+PASS chromium | a 4 GiB file is refused with a zip32 message and not added
+PASS chromium | zip32Check accepts a small archive and returns its exact size
+PASS chromium | zip32: a single entry of 4 GiB is rejected
+PASS chromium | zip32: an entry just under 4 GiB still overflows the 32-bit archive and is rejected
+PASS chromium | zip32: two 2 GiB entries are rejected (total over limit)
+PASS chromium | zip32: 65536 entries rejected, 65535 accepted
+PASS chromium | zero console messages
+PASS chromium | zero page errors
+PASS chromium | zero network requests
+{"browser":"chromium","checks":60,"passed":60,"failed":0,"runtime_ms":4596}
+exit=0 wall_ms=5091
+== run 3 firefox 2026-10-11T12:55:00+03:00
+PASS firefox | sample disk loads with status "BlobFS 2D ready"
+PASS firefox | one .orb element per top-level orb (8)
+PASS firefox | zorb stems.zip is rendered with a zipper
+PASS firefox | colour key lists dir, image, audio, text, zip
+PASS firefox | colour key entries each have a swatch
+PASS firefox | colour key labels zip as "zip (zorb)"
+PASS firefox | colour key gains a new kind when a file of that kind is added
+PASS firefox | command "what can I say?" shows the help list
+PASS firefox | unknown command gets a "did not understand" reply
+PASS firefox | command "open stems" lists the zorb entries
+PASS firefox | command "rename notes to memo" keeps the extension-less name and kind
+PASS firefox | command "tag memo with work2" adds the tag
+PASS firefox | command "undo" reverses the tag
+PASS firefox | command "new folder Inbox" creates a folder
+PASS firefox | command "zoom in" increases zoom
+PASS firefox | command "add files" highlights the button and opens no file picker by itself
+PASS firefox | ambiguous name asks which one
+PASS firefox | Covers (image) + Sessions (audio) share a tag: the merge waits as a pending suggestion
+PASS firefox | dir∪dir is committed only on human accept
+PASS firefox | dir∪dir gives ONE directory holding all 4 children
+PASS firefox | dir∪dir absorbs both source directories
+PASS firefox | dir∪dir name clash renamed to 'cover1 (2)'
+PASS firefox | undo of dir∪dir restores both directories with their own children
+PASS firefox | file∪file makes a NEW directory holding both files
+PASS firefox | file∪file directory is named "photo2 + photo1"
+PASS firefox | file∪dir: the directory adopts the file (no new directory)
+PASS firefox | kind gate: different kinds, no shared tag, stay apart
+PASS firefox | physics may propose, never commit
+PASS firefox | unpack reports a new folder with 5 files
+PASS firefox | unpacked folder holds 5 files, duplicate basename disambiguated as "kick (2).wav"
+PASS firefox | the zorb itself is left unchanged on the stage
+PASS firefox | undo of unpack removes the folder
+PASS firefox | dropped files appear as orbs
+PASS firefox | dropped file bytes keep their SHA-256 in the page
+PASS firefox | cross-kind with a shared tag becomes a pending suggestion
+PASS firefox | two pending suggestions before save
+PASS firefox | Save Orb downloads a zip (PK header)
+PASS firefox | orb.py opens and verifies the page-written .orb
+PASS firefox | orb.py reads the dropped files with the same SHA-256
+PASS firefox | orb.py sees the saved undo history and pending suggestions
+PASS firefox | Open .orb reopens with all SHA-256 hashes verified
+PASS firefox | reopen keeps the same top-level orb count
+PASS firefox | undo history depth preserved across save/reopen (6)
+PASS firefox | pending suggestions survive reopen
+PASS firefox | reopened dropped file is byte-exact
+PASS firefox | a reopened suggestion can be accepted
+PASS firefox | a reopened suggestion can be refused
+PASS firefox | undo after reopen restores both directories of the saved dir∪dir merge
+PASS firefox | second save: orb.py and page agree on every blob hash (11)
+PASS firefox | second save reopens cleanly
+PASS firefox | a flipped bit in a payload is refused on open
+PASS firefox | a 4 GiB file is refused with a zip32 message and not added
+PASS firefox | zip32Check accepts a small archive and returns its exact size
+PASS firefox | zip32: a single entry of 4 GiB is rejected
+PASS firefox | zip32: an entry just under 4 GiB still overflows the 32-bit archive and is rejected
+PASS firefox | zip32: two 2 GiB entries are rejected (total over limit)
+PASS firefox | zip32: 65536 entries rejected, 65535 accepted
+PASS firefox | zero console messages
+PASS firefox | zero page errors
+PASS firefox | zero network requests
+{"browser":"firefox","checks":60,"passed":60,"failed":0,"runtime_ms":9259}
+exit=0 wall_ms=9714

@@ -1,0 +1,21 @@
+2026-10-11T12:49:27+03:00
+6.12.94+
+8
+Python 3.13.5
+v20.19.2
+-rw-r--r-- 1 box box 228060 Oct 11 12:49 /tmp/orb-bench-cold/f100.orb
+{"mode": "cold", "file": "f100.orb", "runs_ms": [7.0, 6.5, 8.2, 5.5, 5.8], "median_ms": 6.5, "resident_bytes_before_each_run": [0, 0, 0, 0, 0]}
+{"mode":"cold","browser":"chromium","file":"f100.orb","runs_ms":[84,63,65,58,57],"reply":"Opened f100.orb: 50 orbs, 150 blobs, 100 payloads (all SHA-256 hashes verified).","pageErrors":[],"resident_bytes_before_each_run":[0,0,0,0,0]}
+{"mode":"cold","browser":"firefox","file":"f100.orb","runs_ms":[53,31,29,30,34],"reply":"Opened f100.orb: 50 orbs, 150 blobs, 100 payloads (all SHA-256 hashes verified).","pageErrors":[],"resident_bytes_before_each_run":[0,0,0,0,0]}
+-rw-r--r-- 1 box box 2305070 Oct 11 12:49 /tmp/orb-bench-cold/f1000.orb
+{"mode": "cold", "file": "f1000.orb", "runs_ms": [73.3, 65.9, 56.7, 61.8, 58.7], "median_ms": 61.8, "resident_bytes_before_each_run": [0, 0, 0, 0, 0]}
+{"mode":"cold","browser":"chromium","file":"f1000.orb","runs_ms":[522,531,475,803,454],"reply":"Opened f1000.orb: 500 orbs, 1500 blobs, 1000 payloads (all SHA-256 hashes verified).","pageErrors":[],"resident_bytes_before_each_run":[0,0,0,0,0]}
+{"mode":"cold","browser":"firefox","file":"f1000.orb","runs_ms":[302,270,311,287,295],"reply":"Opened f1000.orb: 500 orbs, 1500 blobs, 1000 payloads (all SHA-256 hashes verified).","pageErrors":[],"resident_bytes_before_each_run":[0,0,0,0,0]}
+-rw-r--r-- 1 box box 9289070 Oct 11 12:49 /tmp/orb-bench-cold/f4000.orb
+{"mode": "cold", "file": "f4000.orb", "runs_ms": [245.0, 295.6, 260.0, 270.2, 240.6], "median_ms": 260.0, "resident_bytes_before_each_run": [0, 0, 0, 0, 0]}
+{"mode":"cold","browser":"chromium","file":"f4000.orb","runs_ms":[6270,4166,2348,4607,2331],"reply":"Opened f4000.orb: 2000 orbs, 6000 blobs, 4000 payloads (all SHA-256 hashes verified).","pageErrors":[],"resident_bytes_before_each_run":[0,0,0,0,0]}
+{"mode":"cold","browser":"firefox","file":"f4000.orb","runs_ms":[2869,2882,2432,3044,2700],"reply":"Opened f4000.orb: 2000 orbs, 6000 blobs, 4000 payloads (all SHA-256 hashes verified).","pageErrors":[],"resident_bytes_before_each_run":[0,0,0,0,0]}
+-rw-r--r-- 1 box box 104858694 Oct 11 12:49 /tmp/orb-bench-cold/big100.orb
+{"mode": "cold", "file": "big100.orb", "runs_ms": [353.3, 310.8, 315.6, 273.3, 264.1], "median_ms": 310.8, "resident_bytes_before_each_run": [0, 0, 0, 0, 0]}
+{"mode":"cold","browser":"chromium","file":"big100.orb","runs_ms":[734,688,685,658,662],"reply":"Opened big100.orb: 1 orbs, 1 blobs, 1 payloads (all SHA-256 hashes verified).","pageErrors":[],"resident_bytes_before_each_run":[0,0,0,0,0]}
+{"mode":"cold","browser":"firefox","file":"big100.orb","runs_ms":[1759,1715,1836,1838,1723],"reply":"Opened big100.orb: 1 orbs, 1 blobs, 1 payloads (all SHA-256 hashes verified).","pageErrors":[],"resident_bytes_before_each_run":[0,0,0,0,0]}

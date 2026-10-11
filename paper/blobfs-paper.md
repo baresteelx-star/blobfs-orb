@@ -86,10 +86,14 @@ Test results (actually run on 2026-10-03):
 
 | Suite | Environment | Result | Runtime |
 |---|---|---|---|
-| Browser page (Playwright) | headless Chromium, local file | 73/73 checks passed; zero console messages, page errors, or network requests | [TODO: not recorded; the 73-check script was not kept and could not be re-run] |
-| Browser page (Playwright) | headless Firefox, local file | 73/73 checks passed; zero console messages, page errors, or network requests | [TODO: not recorded; the 73-check script was not kept and could not be re-run] |
+| Browser page (Playwright) | headless Chromium, local file | 73/73 checks passed; zero console messages, page errors, or network requests | not recorded (the 73-check script was not kept; see the rebuilt suite below) |
+| Browser page (Playwright) | headless Firefox, local file | 73/73 checks passed; zero console messages, page errors, or network requests | not recorded (the 73-check script was not kept; see the rebuilt suite below) |
+| Rebuilt browser suite `tests/browser_suite.js`, run 2026-10-11 | headless Chromium, local file, Node 20.19.2 | 60/60 checks passed in each of 3 runs; zero console messages, page errors, or network requests | 4.58 s, 4.50 s, 4.60 s (suite-reported) |
+| Rebuilt browser suite `tests/browser_suite.js`, run 2026-10-11 | headless Firefox 157.0, local file, Node 20.19.2 | 60/60 checks passed in each of 3 runs; zero console messages, page errors, or network requests | 8.95 s, 8.98 s, 9.26 s (suite-reported) |
 | `python -m unittest -v tests.test_crosslang` | Python + Playwright (Chromium and Firefox) | 12/12 passed (9 pure-Python, 3 cross-language) | 19.6 s |
 | `python -m unittest -v tests.test_crosslang`, re-run 2026-10-11 | Python 3.13.5, Node 20.19.2, playwright npm package (Chromium, Firefox 157.0) | 12/12 passed (9 pure-Python, 3 cross-language); 140 blob hashes, 128 object hashes, 84 links, 8 page runs | 18.7 s, 17.3 s, 17.1 s (three runs, unittest-reported) |
+
+The original 73-check Playwright script (run 2026-10-03) was not kept, so its runtime was never recorded and its results cannot be reproduced; the two 73/73 rows above are as reported at the time. On 2026-10-11 a new suite, `tests/browser_suite.js`, was written from the description above and the page's features. It is not the original suite and has 60 checks, not 73: rendering, the colour key, the command bar (help, unknown commands, open, rename, tag, undo, new folder, zoom, a typed "add files" opening no file picker, ambiguous names), the merge rules (dir∪dir as one directory after a human accept, a name clash renamed "cover1 (2)", undo of dir∪dir, file∪file making a new directory, file∪dir adopting the file, the kind gate), zorb unpack, dropped files keeping their SHA-256 in the page and in orb.py, .orb save and reopen, undo depth and pending suggestions surviving reopen (a reopened suggestion accepted and another refused, then undo after reopen restoring both directories of a saved dir∪dir merge), a second save on which orb.py and the page agree on every blob hash, a flipped bit refused, the 4 GiB refusal (tested with a File-like stub of size 4 GiB, since a real 4 GiB file was not created), the zip32 limits, and zero console messages, page errors and network requests. Raw output: tests/results-browser-suite-2026-10-11.txt.
 
 On demo.orb, Python and the page agree on all 22 blob hashes, 20 object hashes, 13 links and 101 records. Across the whole cross-language run the test compared 140 blob hashes, 128 object hashes and 84 links over 8 page runs. A re-run on 2026-10-10 on a machine without Node/Playwright passed the 9 pure-Python tests (the 3 cross-language tests were skipped, not failed).
 
@@ -112,7 +116,16 @@ Browser loader and large payload (measured 2026-10-11). Scripts are in bench/ (`
 | 4,000 files | 9.3 MB | 155.0 (149.3–179.3) | 3,269 (1,739–5,506) | 1,736 (1,684–1,798) |
 | 1 file, 100 MiB | 104.9 MB | 159.8 (151.9–204.7) | 522 (508–592) | 1,363 (1,348–1,385) |
 
-On many small files the page took about 6 to 21 times as long as orb.py and grows faster than linearly from 1,000 to 4,000 files; Chromium's 4,000-file runs varied by a factor of three on this shared VM. Cold-cache disk timings are [TODO: not yet measured].
+On many small files the page took about 6 to 21 times as long as orb.py and grows faster than linearly from 1,000 to 4,000 files; Chromium's 4,000-file runs varied by a factor of three on this shared VM. Cold-cache open times (measured 2026-10-11, `bench/run_cold.sh`; raw output in bench/results-cold-2026-10-11.txt). Method: freshly built disks with the same parameters as above; before every timed run the script ran `sync` and `echo 3 > /proc/sys/vm/drop_caches` via sudo (bench/drop_cache.sh), and checked with mincore(2) (bench/resident.py) that 0 bytes of the .orb were resident in the page cache before each of the 60 runs. For orb.py the cache is dropped after Python and orb.py are imported; for the page it is dropped after the browser has started, the page has loaded and the file chooser is open, so the timing covers reading the .orb from disk plus parsing and verifying, not browser start-up. Dropping the cache also evicts other unmapped files (for example parts of the Python and browser installs), which may add to the times. The disk is a virtio block device on the same shared VM, and the host may cache it, so "cold" means cold in the guest's page cache, not necessarily a physical disk read. Medians of 5 runs (min–max), in ms:
+
+| Disk | .orb size | orb.py, cold | Chromium page, cold | Firefox page, cold |
+|---|---|---|---|---|
+| 100 files | 0.23 MB | 6.5 (5.5–8.2) | 63 (57–84) | 31 (29–53) |
+| 1,000 files | 2.3 MB | 61.8 (56.7–73.3) | 522 (454–803) | 295 (270–311) |
+| 4,000 files | 9.3 MB | 260.0 (240.6–295.6) | 4,166 (2,331–6,270) | 2,869 (2,432–3,044) |
+| 1 file, 100 MiB | 104.9 MB | 310.8 (264.1–353.3) | 685 (658–734) | 1,759 (1,715–1,838) |
+
+The cold and warm series were run at different times on a shared VM, so the differences between them include run-to-run noise as well as the cost of the disk read.
 
 ## 6. Future Work: Planned User Study
 
@@ -129,7 +142,7 @@ Practical steps (not yet taken): run a pilot with three people first. The study 
 - No user study yet. The folder literature points the other way on effort, so the study is not optional.
 - The mass constant C is 1 MiB (1,048,576 bytes) in the browser page (`BODY = 1024 * 1024` in blobfs-2d.html, also written into every saved .orb header as `constantMass`). It is a chosen value, not derived or measured. The Python reference orb.py uses the same value (`C = 1048576`) and refuses a file whose header says otherwise.
 - The repulsion coefficient is tuned, not derived.
-- Performance measurements are small open-time benchmarks on one shared VM with a warm page cache (Section 5): orb.py and the browser page in Chromium and Firefox, at 100 to 4,000 files and one 100 MiB file. Cold-cache timings are [TODO: not yet measured], and the runtime of the 73-check browser suite was never recorded.
+- Performance measurements are small open-time benchmarks on one shared VM with a warm page cache and with the guest page cache dropped (Section 5): orb.py and the browser page in Chromium and Firefox, at 100 to 4,000 files and one 100 MiB file. The runtime of the original 73-check browser suite was never recorded and that script was lost; the rebuilt 60-check suite's runtime is reported instead.
 - The zip profile has not been formally specified. The page writes uncompressed (STORE) zip32 archives with its own inline writer and reads STORE and DEFLATE (DEFLATE needs the browser's DecompressionStream); orb.py writes STORE zip32 and reads what Python's zipfile reads. The format is strict about what it reads and tolerant about what it writes, but this should be tightened.
 - There is no ZIP64: a single file of 4 GiB or more is refused, and so is a save that would exceed 4 GiB in total or 65,535 entries. Files of the built-in sample disk are synthetic placeholders, marked `"payload":"placeholder"` in the saved records; imported, added and dropped files are stored as their real bytes.
 - The ACM DL sweep is now free (ACM went fully open access January 2026), but the IEEE Xplore full-text sweep still needs access or author PDFs.

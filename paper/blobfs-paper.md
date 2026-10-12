@@ -1,6 +1,6 @@
 # BlobFS: Kind-Typed Fusion of Distinct Objects as a Recorded, Human-Committed Storage Event
 
-**Kenneth S.**
+**Kenneth Santala**
 
 ## Abstract
 
@@ -105,7 +105,7 @@ Open time against event count. Method: a small script builds a disk with orb.py 
 | 1,000 | 1,500 | 6,501 | 2.3 MB | 40.7 ms (35.1–51.5) |
 | 4,000 | 6,000 | 26,001 | 9.3 MB | 193.3 ms (169.8–223.1) |
 
-demo.orb (101 records) opened and verified in 6.5 ms (single run). Open time grows roughly linearly with record count in this range. These are Python-reference numbers on a shared VM; the browser loader's open time, large payloads, and cold-cache disks were not measured in this run.
+demo.orb (101 records) opened and verified in 6.5 ms (single run). Open time grows roughly linearly with record count in this range. These are Python-reference numbers on a shared VM; browser open times, a large-payload case, and cold-cache open times are reported in the tables that follow.
 
 Browser loader and large payload (measured 2026-10-11). Scripts are in bench/ (`bench/run_all.sh`; raw output in bench/results-2026-10-11.txt). The same disks were built with `bench/make_disk.py` (N files of 1 KiB random bytes merged pairwise, plus one disk holding a single 100 MiB random file). `bench/py_open.py` times `orb.load(path, verify=True)`. `bench/page_open.js` loads blobfs-2d.html from a local file in headless Chromium or Firefox (Playwright, Node 20.19.2), clicks the page's own Open .orb button, and times from handing the file to the file chooser until the page reports "Opened … (all SHA-256 hashes verified)", with a fresh page for each run. Same machine as above (shared Linux VM, 8 vCPUs, Python 3.13.5), warm page cache. Medians of 5 runs (min–max), in ms:
 
@@ -145,7 +145,7 @@ Practical steps (not yet taken): run a pilot with three people first. The study 
 - Performance measurements are small open-time benchmarks on one shared VM with a warm page cache and with the guest page cache dropped (Section 5): orb.py and the browser page in Chromium and Firefox, at 100 to 4,000 files and one 100 MiB file. The runtime of the original 73-check browser suite was never recorded and that script was lost; the rebuilt 60-check suite's runtime is reported instead.
 - The zip profile has not been formally specified. The page writes uncompressed (STORE) zip32 archives with its own inline writer and reads STORE and DEFLATE (DEFLATE needs the browser's DecompressionStream); orb.py writes STORE zip32 and reads what Python's zipfile reads. The format is strict about what it reads and tolerant about what it writes, but this should be tightened.
 - There is no ZIP64: a single file of 4 GiB or more is refused, and so is a save that would exceed 4 GiB in total or 65,535 entries. Files of the built-in sample disk are synthetic placeholders, marked `"payload":"placeholder"` in the saved records; imported, added and dropped files are stored as their real bytes.
-- The ACM DL sweep is now free (ACM went fully open access January 2026), but the IEEE Xplore full-text sweep still needs access or author PDFs.
+- The related-work search relied on openly accessible records, including the ACM Digital Library; IEEE Xplore full texts were not reviewed.
 - 3D delivery (VR, haptics, light fields) is far future; the prototype is a browser page.
 
 ### Future work: AI curation and gaze
@@ -156,7 +156,7 @@ Gaze may later replace the mouse for deictic references, so that "merge this int
 
 ## 8. Conclusion
 
-BlobFS combines kind-typed fusion of distinct objects into a new stored container, refusals recorded as events, a human as the one who commits, and a self-describing archive with content-addressed payloads. The format is real — two implementations agree, the tests pass, and the narrow four-part claim survives a literature sweep. What remains is the user study (future work), cold-cache performance numbers, and the paywalled index check. The idea is that a disk should organize itself around what you do, and that nothing you merge should ever be gone for good.
+BlobFS combines kind-typed fusion of distinct objects into a new stored container, refusals recorded as events, a human as the one who commits, and a self-describing archive with content-addressed payloads. The format is real — two implementations agree, the tests pass, and the narrow four-part claim survives a literature sweep. What remains is the user study (planned future work). The idea is that a disk should organize itself around what you do, and that nothing you merge should ever be gone for good.
 
 ## References
 

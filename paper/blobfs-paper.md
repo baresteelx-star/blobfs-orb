@@ -1,4 +1,4 @@
-# BlobFS: Kind-Typed Fusion of Distinct Objects as a Recorded, Human-Committed Storage Event
+# Merge by Kind, Commit by Hand: The BlobFS File Format
 
 **Kenneth Santala**
 

@@ -1,0 +1,10 @@
+{
+  "name": "blobfs-orb",
+  "private": true,
+  "scripts": {
+    "test": "python3 -m unittest -v tests.test_orb tests.test_crosslang && node tests/browser_suite.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.1"
+  }
+}

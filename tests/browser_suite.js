@@ -1,5 +1,8 @@
-// Rebuilt Playwright check suite for blobfs-2d.html (the original 73-check script was lost; this is a new suite).
-// usage: NODE_PATH=... node tests/browser_suite.js [chromium] [firefox]     (default: both)
+// Playwright checks for blobfs-2d.html.
+// The original 73-check script (2026-10-03) was not kept. This suite covers the behaviors that script
+// was described as testing, plus the format rules in the paper: split math, dedup, name collisions,
+// nesting, recorded refusal, undo-as-event, the local use log, and hash/CRC/DEFLATE integrity.
+// usage: node tests/browser_suite.js [chromium] [firefox]     (default: both)
 // Runs the page headless from a local file, prints one line per check, and a JSON summary per browser:
 // {"browser", "checks", "passed", "failed", "runtime_ms"}. Exit code 1 if any check failed.
 // Needs node, the playwright package with chromium/firefox, and python3 (for the orb.py cross-checks).
@@ -197,6 +200,409 @@ async function runBrowser(bname) {
     check('zip32: an entry just under 4 GiB still overflows the 32-bit archive and is rejected', !z.total.ok && /over the 4 GiB zip32 limit/.test(z.total.m));
     check('zip32: two 2 GiB entries are rejected (total over limit)', !z.two.ok && /over the 4 GiB/.test(z.two.m));
     check('zip32: 65536 entries rejected, 65535 accepted', !z.many.ok && /limit 65535/.test(z.many.m) && z.max.ok);
+    const digest = await page.evaluate(async () => {
+      BlobFS.useJsSha(true);
+      const h = await BlobFS.sha256(new TextEncoder().encode('abc'));
+      BlobFS.useJsSha(false);
+      return h;
+    });
+    check('inline SHA-256 matches the known digest of "abc"', digest === 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad', digest);
+    await page.close();
+
+    // ---- commands the 60-check rebuild did not exercise, plus mass and radius ----
+    page = await fresh();
+    check('undo on a fresh disk says there is nothing to undo', /Nothing to undo/.test(await cmd(page, 'undo')));
+    check('an empty command asks for a command', /what can I say/.test(await cmd(page, '   ')));
+    check('merging an orb with itself is refused', /same orb twice/.test(await cmd(page, 'merge notes and notes')));
+    let folderChooser = false; page.once('filechooser', () => { folderChooser = true; });
+    const importReply = await cmd(page, 'import folder'); await page.waitForTimeout(150);
+    check('command "import folder" highlights the button and opens no file picker', /Click the highlighted button/.test(importReply) && !folderChooser &&
+      await page.evaluate(() => document.getElementById('btnImportFolder').classList.contains('pulse')));
+    const nestedReply = await cmd(page, 'merge take1 and photo1');
+    check('merging a nested orb is refused and tells you to split it out', /is inside/.test(nestedReply) && /split it out first/.test(nestedReply) &&
+      await page.evaluate(() => BlobFS.blobs[BlobFS.byName('take1')].parent === BlobFS.byName('Sessions')));
+    check('rename keeps a zip extension and its kind', /Renamed "stems.zip" to "drums.zip" \(still zip\)/.test(await cmd(page, 'rename stems to drums')) &&
+      await page.evaluate(() => { const id = BlobFS.byName('drums.zip'); return !!id && BlobFS.kindOf(id) === 'zip'; }));
+    const zStart = (await page.evaluate(() => BlobFS.view())).z;
+    await cmd(page, 'zoom out');
+    const zOut = (await page.evaluate(() => BlobFS.view())).z;
+    await cmd(page, 'zoom reset');
+    const zReset = (await page.evaluate(() => BlobFS.view())).z;
+    check('zoom out decreases zoom and zoom reset returns to 100%', zOut < zStart && Math.abs(zReset - 1) < 0.001, { zStart, zOut, zReset });
+    check('zoom to a named orb raises the zoom', /Zoomed to "notes"/.test(await cmd(page, 'zoom notes')) && (await page.evaluate(() => BlobFS.view())).z >= 1.8);
+    await cmd(page, 'what can I say?');
+    await cmd(page, 'open notes');
+    const closed = await cmd(page, 'close');
+    check('close hides the help list and clears the selection', /^Closed\./.test(closed) &&
+      await page.evaluate(() => document.getElementById('helpBox').hidden && /Click an orb/.test(document.getElementById('inspector').textContent)));
+    const mic = await page.evaluate(() => {
+      const btn = document.getElementById('btnMic');
+      const has = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+      return { disabled: btn.disabled, has, title: btn.title || '' };
+    });
+    check('the microphone button is enabled only where the Web Speech API exists', mic.disabled === !mic.has && (mic.has || /typing works/i.test(mic.title)), mic);
+    await cmd(page, 'new folder EmptyBox');
+    const rad = await page.evaluate(() => {
+      const e = BlobFS.byName('EmptyBox'), h = BlobFS.byName('photo1');
+      const me = BlobFS.massOf(e), mh = BlobFS.massOf(h), re = BlobFS.radiusOf(e), rh = BlobFS.radiusOf(h);
+      return { me, mh, re, rh, err: Math.abs(rh - re * Math.cbrt(mh / me)) };
+    });
+    check('an empty folder has mass 1 MiB and radius follows the cube root of mass', rad.me === 1048576 && rad.mh > rad.me && rad.err < 0.02, rad);
+    await cmd(page, 'tag song1 with link');
+    await cmd(page, 'tag photo1 with link');
+    await cmd(page, 'merge song1 and photo1');
+    await cmd(page, 'tag notes with link');
+    await cmd(page, 'tag photo2 with link');
+    await cmd(page, 'merge notes and photo2');
+    const amb = await cmd(page, 'accept');
+    check('accept with more than one suggestion asks which one and commits nothing', /suggestions are pending/.test(amb) && /Say "accept/.test(amb) &&
+      await page.evaluate(() => ['song1', 'photo1', 'notes', 'photo2'].every(n => BlobFS.blobs[BlobFS.byName(n)].parent === null)), amb);
+    await page.close();
+
+    // ---- split math, history of the move, unmerge leaves the merge in the log ----
+    page = await fresh();
+    await cmd(page, 'tag song1 with pair');
+    await cmd(page, 'tag photo1 with pair');
+    check('the 0.8 MB song and the 2.7 MB photo wait for a human', /say "accept"/.test(await cmd(page, 'merge song1 and photo1')));
+    check('accepting them builds one directory and does not paste the bytes together', /^Accepted: merged "song1" and "photo1"/.test(await cmd(page, 'accept song1')) &&
+      await page.evaluate(() => {
+        const song = BlobFS.byName('song1'), photo = BlobFS.byName('photo1');
+        const p = BlobFS.blobs[song].parent;
+        return p && p === BlobFS.blobs[photo].parent && BlobFS.blobs[p].type === 'dir' &&
+          BlobFS.blobs[song].size === 800000 && BlobFS.blobs[photo].size === 2700000 && BlobFS.blobs[p].children.length === 2;
+      }));
+    const rings = await page.evaluate(() => {
+      const id = BlobFS.blobs[BlobFS.byName('song1')].parent;
+      const el = document.querySelector('.orb[data-id="' + id + '"] .label');
+      return { rings: BlobFS.blobs[id].rings, label: el ? el.textContent : '' };
+    });
+    check('the merged directory draws one ring', rings.rings === 1 && /1 ring/.test(rings.label), rings);
+    const splitReply = await cmd(page, 'split song1');
+    const splitMass = await page.evaluate(() => {
+      const song = BlobFS.byName('song1'), photo = BlobFS.byName('photo1');
+      const parent = BlobFS.blobs[photo].parent;
+      const ev = BlobFS.events.filter(e => e.type === 'split').pop();
+      return { child: BlobFS.massOf(song), parentMass: BlobFS.massOf(parent), before: ev && ev.parentMassBefore,
+               songSize: BlobFS.blobs[song].size, photoSize: BlobFS.blobs[photo].size,
+               songFree: BlobFS.blobs[song].parent === null, parentName: BlobFS.blobs[parent].name };
+    });
+    const halfPayloads = (2700000 + 800000) / 2;
+    check('splitting them moves exactly the child mass (800000 + 1 MiB), not half the payloads (1750000)',
+      /Split "song1" out of/.test(splitReply) && splitMass.songFree && splitMass.songSize === 800000 && splitMass.photoSize === 2700000 &&
+      splitMass.child === 800000 + 1048576 && splitMass.before === splitMass.parentMass + splitMass.child &&
+      splitMass.child !== halfPayloads && halfPayloads === 1750000, splitMass);
+    // parent + child == merged mass: recompute from the event the split recorded
+    const splitEv = await page.evaluate(() => {
+      const ev = BlobFS.events.filter(e => e.type === 'split').pop();
+      const merge = BlobFS.events.filter(e => e.type === 'merge');
+      const dom = document.getElementById('history').textContent;
+      return { before: ev && ev.parentMassBefore, after: ev && ev.parentMassAfter, child: ev && ev.childMass,
+               merges: merge.length, domHasMerge: /merged/.test(dom), domHasSplit: /split/.test(dom) };
+    });
+    check('the parent lost exactly the child mass and the merge stays visible in the history',
+      splitEv.before - splitEv.after === splitEv.child && splitEv.child === 800000 + 1048576 &&
+      splitEv.before === splitEv.after + splitEv.child && splitEv.merges === 1 && splitEv.domHasMerge && splitEv.domHasSplit, splitEv);
+    const undoSplit = await cmd(page, 'undo');
+    check('undo of the split puts the file back and keeps the split event', /put "song1" back into/.test(undoSplit) &&
+      await page.evaluate(() => {
+        const song = BlobFS.byName('song1');
+        return BlobFS.blobs[song].parent !== null && BlobFS.events.some(e => e.type === 'split') && BlobFS.events.some(e => e.type === 'undo');
+      }));
+    const unmerge = await cmd(page, 'undo');
+    const freed = await page.evaluate(() => {
+      const song = BlobFS.byName('song1'), photo = BlobFS.byName('photo1');
+      return { songParent: BlobFS.blobs[song].parent, photoParent: BlobFS.blobs[photo].parent,
+               songSize: BlobFS.blobs[song].size, photoSize: BlobFS.blobs[photo].size,
+               merges: BlobFS.events.filter(e => e.type === 'merge').length,
+               undos: BlobFS.events.filter(e => e.type === 'undo').length,
+               dom: document.getElementById('history').textContent };
+    });
+    check('unmerge frees both files and leaves the merge event in the log', /unmerged "song1" and "photo1"/.test(unmerge) &&
+      freed.songParent === null && freed.photoParent === null && freed.songSize === 800000 && freed.photoSize === 2700000 &&
+      freed.merges === 1 && freed.undos >= 2 && /merged/.test(freed.dom) && /unmerged/.test(freed.dom), freed);
+    await page.close();
+
+    // ---- local use log: opens, plays, exports ----
+    page = await fresh();
+    const notesId = await id(page, 'notes');
+    const undo0 = await page.evaluate(() => BlobFS.undoDepth());
+    await page.locator('.orb[data-id="' + notesId + '"]').click();
+    await page.waitForTimeout(40);
+    const opened = await page.evaluate((id) => {
+      const ev = BlobFS.events.filter(e => e.type === 'open');
+      return { n: ev.length, local: !!(ev[0] && ev[0].local), via: ev[0] && ev[0].via, id: ev[0] && ev[0].id,
+               text: ev[0] && ev[0].text, undo: BlobFS.undoDepth(),
+               inspector: document.getElementById('inspector').textContent };
+    }, notesId);
+    check('clicking an orb logs one local open and selects it', opened.n === 1 && opened.local && opened.via === 'click' && opened.id === notesId &&
+      /open "notes"/.test(opened.text) && opened.undo === undo0 && /notes/.test(opened.inspector), opened);
+    await page.locator('.orb[data-id="' + notesId + '"]').click();
+    await page.waitForTimeout(40);
+    check('opening the same orb again does not log a second open', await page.evaluate(() => BlobFS.events.filter(e => e.type === 'open').length === 1));
+    await cmd(page, 'open song1');
+    await cmd(page, 'open song1');
+    const opens = await page.evaluate(() => BlobFS.events.filter(e => e.type === 'open').map(e => e.text));
+    check('a typed open is logged once and repeating it is not', opens.length === 2 && opens.some(t => /open "song1" \(typed\)/.test(t)), opens);
+    const playsBefore = await page.evaluate(() => BlobFS.events.filter(e => e.type === 'play').length);
+    const zipPlay = await cmd(page, 'play stems');
+    const textPlay = await cmd(page, 'play notes');
+    const playsMid = await page.evaluate(() => BlobFS.events.filter(e => e.type === 'play').length);
+    check('playing a zip or a text file is refused and is not logged', /is a zip/.test(zipPlay) && /no audio/.test(textPlay) && playsMid === playsBefore, { zipPlay, textPlay });
+    const songPlay = await cmd(page, 'play song1');
+    const playEv = await page.evaluate(() => BlobFS.events.filter(e => e.type === 'play').map(e => ({ local: !!e.local, text: e.text })));
+    check('playing sample audio logs a local play event', playEv.length === 1 && playEv[0].local && /play "song1"/.test(playEv[0].text) &&
+      (/short generated tone/.test(songPlay) || /no WebAudio/.test(songPlay)), { songPlay, playEv });
+    const undoBeforeExport = await page.evaluate(() => BlobFS.undoDepth());
+    const dlPromise = page.waitForEvent('download');
+    const expReply = await cmd(page, 'export history');
+    const expDl = await dlPromise;
+    const histPath = path.join(tmp, 'history-' + bname + '.txt');
+    await expDl.saveAs(histPath);
+    const histText = fs.readFileSync(histPath, 'utf8');
+    const undoAfterExport = await page.evaluate(() => BlobFS.undoDepth());
+    check('export history contains the use-log events and does not push an undo',
+      expDl.suggestedFilename() === 'blobfs-history.txt' && /local use log/.test(histText) && /open "notes"/.test(histText) &&
+      /play "song1"/.test(histText) && /local use-log events/.test(expReply) && undoAfterExport === undoBeforeExport, expReply);
+    await page.close();
+
+    // ---- dedup and the notes.txt collision, on an empty disk ----
+    const fixDir = path.join(tmp, 'fix'); fs.mkdirSync(fixDir);
+    fs.writeFileSync(path.join(fixDir, 'build.py'), [
+      'import os, sys, zipfile',
+      'sys.path.insert(0, sys.argv[1])',
+      'import orb',
+      'base = sys.argv[2]',
+      'orb.save(orb.Disk(), os.path.join(base, "empty.orb"))',
+      'd = orb.Disk()',
+      'outer = d.add_dir("Outer")',
+      'inner = d.add_dir("Inner", parent=outer)',
+      'd.add_file("deep.txt", b"deep-bytes-xyz", parent=inner)',
+      'side = d.add_dir("Shelf")',
+      'd.add_file("item.txt", b"side-bytes", parent=side)',
+      'orb.save(d, os.path.join(base, "nested.orb"))',
+      's = orb.Disk()',
+      's.add_file("hello.bin", b"hello-blobfs")',
+      'small = os.path.join(base, "small.orb")',
+      'orb.save(s, small)',
+      'flipped = {"done": False}',
+      'def mut(name, data):',
+      '    if name.startswith("objects/") and not flipped["done"] and data:',
+      '        flipped["done"] = True',
+      '        return bytes([data[0] ^ 1]) + data[1:]',
+      '    return data',
+      'with zipfile.ZipFile(small) as z, zipfile.ZipFile(os.path.join(base, "hashbad.orb"), "w") as w:',
+      '    for n in z.namelist():',
+      '        w.writestr(n, mut(n, z.read(n)))',
+      'raw = bytearray(open(small, "rb").read())',
+      'with zipfile.ZipFile(small) as z:',
+      '    oname = next(n for n in z.namelist() if n.startswith("objects/"))',
+      '    local = z.getinfo(oname).header_offset + 14',
+      'name_b = oname.encode()',
+      'start, central = 0, None',
+      'while True:',
+      '    i = raw.find(b"PK\\x01\\x02", start)',
+      '    if i < 0: break',
+      '    nl = int.from_bytes(raw[i+28:i+30], "little")',
+      '    if bytes(raw[i+46:i+46+nl]) == name_b:',
+      '        central = i + 16',
+      '        break',
+      '    start = i + 4',
+      'if central is None: raise SystemExit("no central crc")',
+      'raw[local] ^= 0xFF',
+      'raw[central] ^= 0xFF',
+      'open(os.path.join(base, "crcbad.orb"), "wb").write(raw)',
+      'p = orb.Disk()',
+      'p.add_file("deflated.bin", b"deflate-payload-xyz")',
+      'stored = os.path.join(base, "defstored.orb")',
+      'orb.save(p, stored)',
+      'with zipfile.ZipFile(stored) as z, zipfile.ZipFile(os.path.join(base, "deflate.orb"), "w", compression=zipfile.ZIP_DEFLATED) as w:',
+      '    for n in z.namelist():',
+      '        w.writestr(n, z.read(n))',
+      'print("fixtures-ok")',
+    ].join('\n'));
+    execFileSync('python3', [path.join(fixDir, 'build.py'), ROOT, fixDir], { encoding: 'utf8' });
+    page = await fresh();
+    check('an empty .orb opens and verifies', /^Opened empty\.orb: 0 orbs, 0 blobs, 0 payloads \(all SHA-256 hashes verified\)/.test(await open(page, path.join(fixDir, 'empty.orb'))));
+    const same = crypto.randomBytes(64), other = crypto.randomBytes(64);
+    await drop(page, 'dup-a.bin', same.toString('base64')); await page.waitForTimeout(80);
+    await drop(page, 'dup-b.bin', same.toString('base64')); await page.waitForTimeout(80);
+    await drop(page, 'uniq.bin', other.toString('base64')); await page.waitForTimeout(80);
+    const dedupPath = await save(page, 'dedup.orb');
+    const dedup = py('d=orb.load(sys.argv[1])\nfiles={b["name"]:b["hash"] for b in d.blobs.values() if b["type"]=="file"}\nprint(json.dumps({"objects":len(d.objects),"files":files,"payload":{b["name"]:b.get("payload") for b in d.blobs.values() if b["type"]=="file"}}))', dedupPath);
+    check('three files with one duplicate are stored as two payloads', dedup.objects === 2 && dedup.files['dup-a.bin'] === dedup.files['dup-b.bin'] &&
+      dedup.files['dup-a.bin'] !== dedup.files['uniq.bin'] && dedup.payload['dup-a.bin'] === 'bytes' && dedup.files['dup-a.bin'] === sha(same), dedup);
+    await page.evaluate(() => {
+      const dt = new DataTransfer();
+      dt.items.add(new File([new Uint8Array([1, 2, 3, 4])], 'notes.txt'));
+      dt.items.add(new File([new Uint8Array([5, 6, 7, 8])], 'notes.txt'));
+      const st = document.getElementById('stage');
+      st.dispatchEvent(new DragEvent('dragover', { dataTransfer: dt, bubbles: true, cancelable: true }));
+      st.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    });
+    await page.waitForTimeout(120);
+    const clash = await page.evaluate(async () => {
+      const ids = Object.keys(BlobFS.blobs).filter(id => BlobFS.blobs[id].name === 'notes.txt' && BlobFS.blobs[id].parent === null && !BlobFS.blobs[id].gone);
+      if (ids.length !== 2) return { ids: ids.length };
+      BlobFS.resolveDrop(ids[0], ids[1]);
+      const parent = BlobFS.blobs[ids[0]].parent;
+      const out = { type: BlobFS.blobs[parent].type, names: BlobFS.blobs[parent].children.map(c => BlobFS.blobs[c].name).sort(), hashes: {} };
+      for (const c of BlobFS.blobs[parent].children) {
+        out.hashes[BlobFS.blobs[c].name] = await BlobFS.sha256(new Uint8Array(await BlobFS.blobs[c].file.arrayBuffer()));
+      }
+      return out;
+    });
+    check('two notes.txt files become notes.txt and notes (2).txt and both payloads survive',
+      clash.type === 'dir' && clash.names && clash.names.join(',') === 'notes (2).txt,notes.txt' && clash.hashes['notes.txt'] !== clash.hashes['notes (2).txt'], clash);
+    await page.close();
+
+    // ---- a folder merged in stays a sub-orb ----
+    page = await fresh();
+    check('a nested folder opens as a sub-orb, not a flattened top-level file', /^Opened nested\.orb:/.test(await open(page, path.join(fixDir, 'nested.orb'))) &&
+      await page.evaluate(() => {
+        const outer = BlobFS.byName('Outer'), inner = BlobFS.byName('Inner'), deep = BlobFS.byName('deep.txt');
+        const top = BlobFS.topLevel().map(id => BlobFS.blobs[id].name).sort();
+        const outerEl = document.querySelector('.orb[data-id="' + outer + '"]');
+        const innerEl = outerEl && outerEl.querySelector('.sub[data-id="' + inner + '"]');
+        const deepEl = innerEl && innerEl.querySelector('.sub[data-id="' + deep + '"]');
+        return top.join(',') === 'Outer,Shelf' && BlobFS.blobs[inner].type === 'dir' && BlobFS.blobs[inner].parent === outer &&
+          BlobFS.blobs[deep].parent === inner && !BlobFS.topLevel().includes(inner) && !!(innerEl && deepEl);
+      }));
+    const nestIds = await page.evaluate(() => ({ outer: BlobFS.byName('Outer'), side: BlobFS.byName('Shelf'), inner: BlobFS.byName('Inner'), deep: BlobFS.byName('deep.txt') }));
+    const nestMerge = await cmd(page, 'merge Outer and Shelf');
+    const nestAfter = await page.evaluate((ids) => {
+      const result = BlobFS.blobs[ids.inner].parent;
+      const direct = BlobFS.blobs[result].children.map(c => BlobFS.blobs[c].name).sort();
+      const el = document.querySelector('.orb[data-id="' + result + '"] .sub[data-id="' + ids.inner + '"]');
+      return { replyOk: true, direct, deepParent: BlobFS.blobs[ids.deep].parent === ids.inner, innerType: BlobFS.blobs[ids.inner].type,
+               resultType: BlobFS.blobs[result].type, outerGone: !!BlobFS.blobs[ids.outer].gone, sideGone: !!BlobFS.blobs[ids.side].gone,
+               innerTop: BlobFS.topLevel().includes(ids.inner), drawn: !!el };
+    }, nestIds);
+    check('merging that folder keeps the inner folder whole', /^Merged "Outer" and "Shelf"/.test(nestMerge) && nestAfter.innerType === 'dir' &&
+      nestAfter.resultType === 'dir' && nestAfter.deepParent && nestAfter.direct.indexOf('Inner') !== -1 && nestAfter.direct.indexOf('deep.txt') === -1 &&
+      nestAfter.outerGone && nestAfter.sideGone && !nestAfter.innerTop && nestAfter.drawn, { nestMerge, nestAfter });
+    const nestSaved = await save(page, 'nested-merged.orb');
+    const nestPy = py('d=orb.load(sys.argv[1])\ni=d.by_name("deep.txt")\nprint(json.dumps({"bytes":d.payload(i).decode("utf-8"),"parentType":d.blobs[d.parent[i]]["type"],"parentName":d.blobs[d.parent[i]]["name"]}))', nestSaved);
+    check('the nested file survives the page merge byte for byte', nestPy.bytes === 'deep-bytes-xyz' && nestPy.parentType === 'dir' && nestPy.parentName === 'Inner', nestPy);
+    await page.close();
+
+    // ---- physics may propose, never commit; a refusal is recorded ----
+    page = await fresh();
+    await page.evaluate(({ gap }) => {
+      const a = BlobFS.byName('song1'), b = BlobFS.byName('photo1');
+      const place = () => {
+        let k = 0;
+        BlobFS.topLevel().forEach((id) => {
+          const o = BlobFS.blobs[id];
+          o.vx = o.vy = 0;
+          if (id === a || id === b) return;
+          o.x = 60 + (k % 4) * 200; o.y = 460; k++;
+        });
+        const A = BlobFS.blobs[a], B = BlobFS.blobs[b];
+        A.x = 180; A.y = 150;
+        B.x = A.x + BlobFS.radiusOf(a) + BlobFS.radiusOf(b) + gap;
+        B.y = A.y;
+      };
+      place();
+      if (window.__pin) clearInterval(window.__pin);
+      window.__pin = setInterval(place, 16);
+    }, { gap: 12 });
+    await page.waitForTimeout(450);
+    const noTag = await page.evaluate(() => {
+      const a = BlobFS.byName('song1'), b = BlobFS.byName('photo1');
+      return { pending: BlobFS.pending().filter(p => p.a === a || p.b === a || p.a === b || p.b === b).length,
+               parent: BlobFS.blobs[a].parent || BlobFS.blobs[b].parent, merges: BlobFS.events.filter(e => e.type === 'merge').length };
+    });
+    check('no shared tag, held in contact: physics proposes nothing and merges nothing', noTag.pending === 0 && !noTag.parent && noTag.merges === 0, noTag);
+    await page.evaluate(() => { BlobFS.tag(BlobFS.byName('song1'), 'pair'); BlobFS.tag(BlobFS.byName('photo1'), 'pair'); });
+    await page.waitForTimeout(450);
+    const proposed = await page.evaluate(() => {
+      const a = BlobFS.byName('song1'), b = BlobFS.byName('photo1');
+      const p = BlobFS.pending().filter(x => (x.a === a && x.b === b) || (x.a === b && x.b === a));
+      const marked = [a, b].every(id => document.querySelector('.orb[data-id="' + id + '"]').classList.contains('pending'));
+      return { n: p.length, source: p[0] && p[0].source, cross: p[0] && p[0].crossKind, shared: p[0] && p[0].shared,
+               parent: BlobFS.blobs[a].parent || BlobFS.blobs[b].parent, merges: BlobFS.events.filter(e => e.type === 'merge').length, marked };
+    });
+    check('a shared tag held in contact becomes a physics suggestion and is not committed', proposed.n === 1 && proposed.source === 'physics' &&
+      proposed.cross === true && proposed.shared.indexOf('pair') !== -1 && !proposed.parent && proposed.merges === 0 && proposed.marked, proposed);
+    const refuseReply = await cmd(page, 'refuse song1');
+    await page.waitForTimeout(300);
+    const refused = await page.evaluate(() => {
+      const a = BlobFS.byName('song1'), b = BlobFS.byName('photo1');
+      const ev = BlobFS.events.filter(e => e.type === 'refuse');
+      return { parent: BlobFS.blobs[a].parent || BlobFS.blobs[b].parent, gone: BlobFS.blobs[a].gone || BlobFS.blobs[b].gone,
+               pending: BlobFS.pending().filter(p => p.a === a || p.b === a || p.a === b || p.b === b).length,
+               refuses: ev.length, text: ev[0] && ev[0].text, sizes: [BlobFS.blobs[a].size, BlobFS.blobs[b].size] };
+    });
+    check('refusing the suggestion leaves both blobs whole and records the refusal', /Kept ".+" and ".+" apart \(refusal recorded\)/.test(refuseReply) &&
+      /song1/.test(refuseReply) && /photo1/.test(refuseReply) &&
+      !refused.parent && !refused.gone && refused.pending === 0 && refused.refuses === 1 && /kept apart/.test(refused.text) &&
+      refused.sizes[0] === 800000 && refused.sizes[1] === 2700000, refused);
+    await page.evaluate(() => { if (window.__pin) clearInterval(window.__pin); });
+    await page.close();
+
+    // ---- drag and drop is the human commit path ----
+    page = await fresh();
+    await page.evaluate(() => {
+      BlobFS.topLevel().forEach((id, i) => {
+        const b = BlobFS.blobs[id];
+        b.x = 90 + (i % 4) * 200; b.y = 130 + Math.floor(i / 4) * 240; b.vx = b.vy = 0;
+      });
+    });
+    await page.waitForTimeout(80);
+    const dragOnto = async (fromId, toId) => {
+      const box = async (id) => page.locator('.orb[data-id="' + id + '"]').boundingBox();
+      const a = await box(fromId), b = await box(toId);
+      if (!a || !b) return '';
+      await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 18 });
+      const cls = await page.locator('.orb[data-id="' + toId + '"]').getAttribute('class');
+      await page.mouse.up();
+      await page.waitForTimeout(60);
+      return cls || '';
+    };
+    const photo1 = await id(page, 'photo1'), photo2 = await id(page, 'photo2');
+    const sameCls = await dragOnto(photo1, photo2);
+    const sameDrop = await page.evaluate(() => {
+      const a = BlobFS.byName('photo1'), b = BlobFS.byName('photo2');
+      const p = a && BlobFS.blobs[a].parent;
+      const ev = BlobFS.events.filter(e => e.type === 'merge').pop();
+      return { same: !!(p && b && p === BlobFS.blobs[b].parent), by: ev && ev.confirmedBy, status: document.getElementById('status').textContent };
+    });
+    check('dropping a file on a same-kind file merges, and the commit is the human drop', /drop-ok/.test(sameCls) && sameDrop.same &&
+      sameDrop.by === 'human-drop' && /Merged \(same kind\)/.test(sameDrop.status), { sameCls, sameDrop });
+    const songId = await id(page, 'song1'), stemsId = await id(page, 'stems.zip');
+    const noCls = await dragOnto(songId, stemsId);
+    const noDrop = await page.evaluate(() => ({ parent: BlobFS.blobs[BlobFS.byName('song1')].parent, pending: BlobFS.pending().length,
+      status: document.getElementById('status').textContent }));
+    check('dropping across kinds with no shared tag shows a refusal outline and does not merge', /drop-no/.test(noCls) && !/drop-ask/.test(noCls) &&
+      noDrop.parent === null && noDrop.pending === 0 && /bounced apart/.test(noDrop.status), { noCls, noDrop });
+    await cmd(page, 'tag song1 with stems');
+    const askCls = await dragOnto(songId, stemsId);
+    const askDrop = await page.evaluate(() => {
+      const p = BlobFS.pending();
+      return { parent: BlobFS.blobs[BlobFS.byName('song1')].parent, n: p.length, source: p[0] && p[0].source, cross: p[0] && p[0].crossKind,
+               status: document.getElementById('status').textContent };
+    });
+    check('dropping across kinds with a shared tag asks and does not commit', /drop-ask/.test(askCls) && askDrop.parent === null && askDrop.n === 1 &&
+      askDrop.source === 'drop' && askDrop.cross === true && /confirm/.test(askDrop.status), { askCls, askDrop });
+    await page.close();
+
+    // ---- hash, CRC, and DEFLATE ----
+    page = await fresh();
+    const deflateReply = await open(page, path.join(fixDir, 'deflate.orb'));
+    const deflateBody = await page.evaluate(async () => {
+      const b = BlobFS.blobs[BlobFS.byName('deflated.bin')];
+      const u8 = new Uint8Array(await b.file.arrayBuffer());
+      let s = ''; for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+      return { size: b.size, text: s, placeholder: !!b.placeholder };
+    });
+    check('a DEFLATE .orb opens and the payload bytes match', /all SHA-256 hashes verified/.test(deflateReply) && deflateBody.text === 'deflate-payload-xyz' &&
+      deflateBody.size === 'deflate-payload-xyz'.length && deflateBody.placeholder === false, { deflateReply, deflateBody });
+    const hashReply = await open(page, path.join(fixDir, 'hashbad.orb'));
+    check('a flipped payload whose zip CRC was recomputed is refused as a hash mismatch', /^Could not open hashbad\.orb: hash mismatch/.test(hashReply), hashReply);
+    const crcReply = await open(page, path.join(fixDir, 'crcbad.orb'));
+    check('a payload whose CRC header was flipped is refused as a CRC mismatch', /^Could not open crcbad\.orb: CRC mismatch/.test(crcReply), crcReply);
     await page.close();
 
     // ---- hygiene ----

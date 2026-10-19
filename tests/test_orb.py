@@ -12,7 +12,7 @@ import unittest
 import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "src"))
 import orb  # noqa: E402
 
 DEMO = os.path.join(ROOT, "demo.orb")

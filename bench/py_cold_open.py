@@ -3,7 +3,7 @@ record how much of the file is resident (bench/resident.py, mincore), then time 
 usage: python bench/py_cold_open.py file.orb [runs]"""
 import json, os, statistics, subprocess, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, os.path.join(HERE, "..", "src"))
 import orb
 def resident(p):
     try: return int(subprocess.run([sys.executable, os.path.join(HERE, "resident.py"), p], capture_output=True, text=True, check=True).stdout)

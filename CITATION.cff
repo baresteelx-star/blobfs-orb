@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use BlobFS, please cite this software."
+title: "BlobFS"
+abstract: >-
+  A file format where files are blobs that merge and split. Merges of
+  different kinds stay proposals until a person accepts them. The .orb
+  archive stores content-addressed payloads.
+authors:
+  - family-names: Santala
+    given-names: Kenneth
+version: 1.0.0
+date-released: "2026-10-19"
+url: "https://github.com/baresteelx-star/blobfs-orb"
+repository-code: "https://github.com/baresteelx-star/blobfs-orb"
+keywords:
+  - file-system
+  - blobfs
+  - archive

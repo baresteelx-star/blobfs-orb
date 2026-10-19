@@ -1,0 +1,7 @@
+prune tests
+prune bench
+prune paper
+prune docs
+prune .github
+global-exclude *.pyc
+global-exclude *.egg-info/*

@@ -1,4 +1,7 @@
 node_modules/
+dist/
+build/
+*.egg-info/
 *.pyc
 __pycache__/
 .DS_Store

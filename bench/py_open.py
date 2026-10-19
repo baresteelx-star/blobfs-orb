@@ -1,6 +1,6 @@
 """Time orb.load(path, verify=True) on a file. usage: python bench/py_open.py file.orb [runs]"""
 import json, os, statistics, sys, time
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import orb
 p, n = sys.argv[1], int(sys.argv[2]) if len(sys.argv) > 2 else 5
 ts = []

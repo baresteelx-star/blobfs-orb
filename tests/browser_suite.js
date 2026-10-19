@@ -53,7 +53,7 @@ async function runBrowser(bname) {
     st.dispatchEvent(new DragEvent('dragover', { dataTransfer: dt, bubbles: true, cancelable: true }));
     st.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
   }, { name, b64 });
-  const py = (code, ...args) => JSON.parse(execFileSync('python3', ['-c', 'import sys,json; sys.path.insert(0,' + JSON.stringify(ROOT) + '); import orb\n' + code, ...args]).toString());
+  const py = (code, ...args) => JSON.parse(execFileSync('python3', ['-c', 'import sys,json; sys.path.insert(0,' + JSON.stringify(path.join(ROOT, 'src')) + '); import orb\n' + code, ...args]).toString());
 
   try {
     // ---- rendering ----
@@ -439,7 +439,7 @@ async function runBrowser(bname) {
       '        w.writestr(n, z.read(n))',
       'print("fixtures-ok")',
     ].join('\n'));
-    execFileSync('python3', [path.join(fixDir, 'build.py'), ROOT, fixDir], { encoding: 'utf8' });
+    execFileSync('python3', [path.join(fixDir, 'build.py'), path.join(ROOT, 'src'), fixDir], { encoding: 'utf8' });
     page = await fresh();
     check('an empty .orb opens and verifies', /^Opened empty\.orb: 0 orbs, 0 blobs, 0 payloads \(all SHA-256 hashes verified\)/.test(await open(page, path.join(fixDir, 'empty.orb'))));
     const same = crypto.randomBytes(64), other = crypto.randomBytes(64);

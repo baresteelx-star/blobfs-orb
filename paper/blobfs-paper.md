@@ -155,7 +155,29 @@ Cold cache, same day, same machine, after the warm series. Before every timed ru
 | 4,000 files | 9.3 MB | 192.0 (183.5–208.6) | 1,954 (1,848–2,026) | 1,928 (1,894–2,043) |
 | 1 file, 100 MiB | 104.9 MB | 204.4 (197.8–209.4) | 756 (750–783) | 1,452 (1,446–1,524) |
 
-These 2026-10-19 numbers are not a comparison against the 8-vCPU 2026-10-11 machine. A GitHub Actions workflow (`.github/workflows/benchmarks.yml`) runs the same two scripts on a GitHub-hosted runner. That job's numbers are not in this paper; no run of it had been recorded when these tables were written.
+These 2026-10-19 guest numbers are not a comparison against the 8-vCPU 2026-10-11 machine.
+
+The same two scripts also ran once on a GitHub-hosted runner on 2026-10-19. The workflow run is [39296171414](https://github.com/baresteelx-star/blobfs-orb/actions/runs/39296171414) (`benchmarks` / job `open-time`), which started at 2026-10-19T17:40:46Z and finished successfully. The job recorded its environment at 2026-10-19T17:41:25Z: 4 vCPUs, model name `INTEL(R) XEON(R) PLATINUM 8573C`, 15 GiB RAM, Ubuntu 24.04.5 LTS, kernel `6.17.0-1022-azure`, Python 3.12.15, Node v20.20.2, Playwright 1.56.1. That Playwright release's browser pins, which the job installed with `npx playwright install --with-deps chromium firefox`, are Chromium 141.0.7390.37 and Firefox 142.0.1. Raw logs are bench/results-gha-2026-10-19.txt, bench/results-gha-2026-10-19-env.txt, and bench/results-cold-gha-2026-10-19.txt. Disk byte sizes matched the local disks. Medians of 5 runs (min–max), in ms. Warm page cache:
+
+| Disk | .orb size | orb.py | Chromium page | Firefox page |
+|---|---|---|---|---|
+| 100 files | 0.23 MB | 6.0 (5.7–7.5) | 56 (55–66) | 29 (28–41) |
+| 1,000 files | 2.3 MB | 59.4 (57.6–64.6) | 494 (437–500) | 268 (260–273) |
+| 4,000 files | 9.3 MB | 254.7 (251.5–259.4) | 2,403 (2,352–5,618) | 2,367 (2,351–2,400) |
+| 1 file, 100 MiB | 104.9 MB | 155.3 (154.1–156.6) | 754 (749–758) | 1,572 (1,546–1,592) |
+
+Chromium's five warm runs on the 4,000-file disk were 5,618, 4,181, 2,403, 2,352, and 2,397 ms. The median is 2,403 ms. The first two runs are the high end of that range.
+
+Cold cache, same job, after the warm series. Before every timed run the script ran `sync` and `echo 3 > /proc/sys/vm/drop_caches` via passwordless sudo (`bench/drop_cache.sh`), then `bench/resident.py` (mincore). All 60 `resident_bytes_before_each_run` values were 0. Cold means cold in the runner's page cache. Medians of 5 runs (min–max), in ms:
+
+| Disk | .orb size | orb.py, cold | Chromium page, cold | Firefox page, cold |
+|---|---|---|---|---|
+| 100 files | 0.23 MB | 7.7 (7.5–9.0) | 70 (60–90) | 44 (33–46) |
+| 1,000 files | 2.3 MB | 66.1 (63.2–71.1) | 458 (448–487) | 292 (290–296) |
+| 4,000 files | 9.3 MB | 267.8 (265.8–281.7) | 2,451 (2,416–2,505) | 2,357 (2,310–2,422) |
+| 1 file, 100 MiB | 104.9 MB | 522.8 (521.7–526.8) | 1,081 (1,072–1,109) | 1,879 (1,877–1,892) |
+
+The 2026-10-11 machine, the 2026-10-19 guest, and this GitHub-hosted runner are three different environments. The tables are not a comparison between them.
 
 ## 6. Future Work: Planned User Study
 
@@ -172,7 +194,7 @@ Practical steps (not yet taken): run a pilot with three people first. The study 
 - No user study yet. The folder literature points the other way on effort, so the study is not optional.
 - The mass constant C is 1 MiB (1,048,576 bytes) in the browser page (`BODY = 1024 * 1024` in blobfs-2d.html, also written into every saved .orb header as `constantMass`). It is a chosen value, not derived or measured. The Python reference orb.py uses the same value (`C = 1048576`) and refuses a file whose header says otherwise.
 - The repulsion coefficient is tuned, not derived.
-- Performance measurements are small open-time benchmarks (Section 5): orb.py and the browser page in Chromium and Firefox, at 100 to 4,000 files and one 100 MiB file, warm and with the guest page cache dropped. The 2026-10-11 series is the 8-vCPU machine. The 2026-10-19 series is the 4-vCPU machine named in that section. The runtime of the original 73-check browser suite was never recorded and that script was not recovered. The 60-check rebuild of 2026-10-11, the 101-check run of 2026-10-16, and the 106-check run of 2026-10-19 are the browser-suite timings reported in Section 5.
+- Performance measurements are small open-time benchmarks (Section 5): orb.py and the browser page in Chromium and Firefox, at 100 to 4,000 files and one 100 MiB file, warm and with the page cache dropped. The 2026-10-11 series is the 8-vCPU machine. The 2026-10-19 guest series is the 4-vCPU machine named in that section. The 2026-10-19 GitHub Actions series is the hosted runner named in that section, one successful workflow run. The runtime of the original 73-check browser suite was never recorded and that script was not recovered. The 60-check rebuild of 2026-10-11, the 101-check run of 2026-10-16, and the 106-check run of 2026-10-19 are the browser-suite timings reported in Section 5.
 - The zip profile has not been formally specified. The page writes uncompressed (STORE) zip32 archives with its own inline writer and reads STORE and DEFLATE (DEFLATE needs the browser's DecompressionStream); orb.py writes STORE zip32 and reads what Python's zipfile reads. The format is strict about what it reads and tolerant about what it writes, but this should be tightened.
 - There is no ZIP64: a single file of 4 GiB or more is refused, and so is a save that would exceed 4 GiB in total or 65,535 entries. On 2026-10-19 a sparse file of exactly 4 GiB was refused through the page's file input (Section 5); the bytes of that file were not allocated. A save that actually exceeds 4 GiB in total was not built. Files of the built-in sample disk are synthetic placeholders, marked `"payload":"placeholder"` in the saved records; imported, added and dropped files are stored as their real bytes.
 - The related-work search relied on openly accessible records, including the ACM Digital Library; IEEE Xplore full texts were not reviewed.

@@ -3,7 +3,7 @@ usage: python bench/make_disk.py files N out.orb      # N files of 1 KiB random 
        python bench/make_disk.py big MB out.orb       # one file of MB MiB random bytes
 """
 import os, sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import orb
 mode, n, out = sys.argv[1], int(sys.argv[2]), sys.argv[3]
 d = orb.Disk()

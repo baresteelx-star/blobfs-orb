@@ -1,0 +1,16 @@
+{
+  "title": "BlobFS",
+  "description": "<p>BlobFS is a file format where files are blobs that merge and split. Merges of different kinds stay proposals until a person accepts them. The .orb archive stores content-addressed payloads. This metadata is for a GitHub release that Zenodo has not minted yet.</p>",
+  "creators": [
+    {
+      "name": "Santala, Kenneth"
+    }
+  ],
+  "keywords": [
+    "file system",
+    "BlobFS",
+    "archive"
+  ],
+  "upload_type": "software",
+  "version": "1.0.0"
+}

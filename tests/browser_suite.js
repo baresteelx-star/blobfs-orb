@@ -1,7 +1,8 @@
 // Playwright checks for blobfs-2d.html.
 // The original 73-check script (2026-10-03) was not kept. This suite covers the behaviors that script
 // was described as testing, plus the format rules in the paper: split math, dedup, name collisions,
-// nesting, recorded refusal, undo-as-event, the local use log, and hash/CRC/DEFLATE integrity.
+// nesting, recorded refusal, undo-as-event, the local use log, hash/CRC/DEFLATE integrity,
+// a real >= 4 GiB sparse file refused by the file input, and spoken commands from a fake Web Speech API.
 // usage: node tests/browser_suite.js [chromium] [firefox]     (default: both)
 // Runs the page headless from a local file, prints one line per check, and a JSON summary per browser:
 // {"browser", "checks", "passed", "failed", "runtime_ms"}. Exit code 1 if any check failed.
@@ -191,6 +192,24 @@ async function runBrowser(bname) {
       return { msg: document.querySelector('#reply').textContent, added: BlobFS.topLevel().length - n0 };
     });
     check('a 4 GiB file is refused with a zip32 message and not added', /Refused "huge.bin".*under 4 GiB.*zip32/.test(big.msg) && big.added === 0);
+    // Real file, not a stub. Sparse is enough: admit() refuses on File.size before any byte is read.
+    const hugePath = path.join(tmp, 'huge-4gib.bin');
+    execFileSync('truncate', ['-s', '4294967296', hugePath]);
+    const hugeBefore = fs.statSync(hugePath);
+    const orbsBeforeHuge = await page.evaluate(() => BlobFS.topLevel().length);
+    const hugeT0 = Date.now();
+    await page.locator('#inFiles').setInputFiles(hugePath);
+    await page.waitForFunction(() => /Refused "huge-4gib\.bin"/.test(document.querySelector('#reply').textContent), null, { timeout: 20000 });
+    const hugeMs = Date.now() - hugeT0;
+    const hugeAfter = fs.statSync(hugePath);
+    const hugeMsg = await page.textContent('#reply');
+    const orbsAfterHuge = await page.evaluate(() => BlobFS.topLevel().length);
+    const hugePresent = await page.evaluate(() => !!BlobFS.byName('huge-4gib.bin'));
+    check('a real sparse file of 4 GiB is refused by the file input and not added',
+      hugeBefore.size === 4294967296 && hugeBefore.blocks === 0 && hugeAfter.size === hugeBefore.size && hugeAfter.blocks === 0 &&
+      orbsAfterHuge === orbsBeforeHuge && !hugePresent &&
+      /Refused "huge-4gib\.bin" \(4294\.97 MB\): a file must be under 4 GiB.*zip32/.test(hugeMsg),
+      { size: hugeBefore.size, blocksBefore: hugeBefore.blocks, blocksAfter: hugeAfter.blocks, hugeMs, orbsBeforeHuge, orbsAfterHuge, hugeMsg });
     const z = await page.evaluate(() => { const t = f => { try { return { ok: true, v: BlobFS.zip32Check(f) }; } catch (e) { return { ok: false, m: e.message }; } };
       return { small: t([{ name: 'a', size: 10 }]), entry: t([{ name: 'x', size: 4294967296 }]), total: t([{ name: 'x', size: 4294967295 }]),
                two: t([{ name: 'a', size: 2147483648 }, { name: 'b', size: 2147483648 }]), many: t(Array.from({ length: 65536 }, (_, i) => ({ name: 'f' + i, size: 0 }))),
@@ -603,6 +622,80 @@ async function runBrowser(bname) {
     check('a flipped payload whose zip CRC was recomputed is refused as a hash mismatch', /^Could not open hashbad\.orb: hash mismatch/.test(hashReply), hashReply);
     const crcReply = await open(page, path.join(fixDir, 'crcbad.orb'));
     check('a payload whose CRC header was flipped is refused as a CRC mismatch', /^Could not open crcbad\.orb: CRC mismatch/.test(crcReply), crcReply);
+    await page.close();
+
+    // ---- spoken commands: a fake Web Speech API, installed before the page loads, delivers results ----
+    // The script is per page, so the microphone check above still sees the real API (or its absence).
+    const voicePage = async (cfg) => {
+      const vp = await ctx.newPage();
+      vp.on('console', m => consoleMsgs.push(m.type() + ': ' + m.text()));
+      vp.on('pageerror', e => pageErrors.push(String(e)));
+      await vp.addInitScript(speech => {
+        window.__speechTranscript = speech.transcript || '';
+        window.__speechError = speech.error || '';
+        function FakeSpeechRecognition() {}
+        FakeSpeechRecognition.prototype.start = function () {
+          var self = this;
+          setTimeout(function () {
+            if (window.__speechError) {
+              if (typeof self.onerror === 'function') self.onerror({ error: window.__speechError });
+            } else if (typeof self.onresult === 'function') {
+              self.onresult({ results: [[{ transcript: window.__speechTranscript }]] });
+            }
+            if (typeof self.onend === 'function') self.onend();
+          }, 30);
+        };
+        FakeSpeechRecognition.prototype.stop = function () { if (typeof this.onend === 'function') this.onend(); };
+        FakeSpeechRecognition.prototype.abort = function () {};
+        window.SpeechRecognition = FakeSpeechRecognition;
+        window.webkitSpeechRecognition = FakeSpeechRecognition;
+      }, cfg);
+      await vp.goto(PAGE);
+      await vp.waitForFunction(() => window.BlobFS && /ready/.test(document.querySelector('#status').textContent));
+      return vp;
+    };
+    page = await voicePage({ transcript: 'open notes' });
+    check('the microphone button is enabled when a speech recognizer is present', await page.evaluate(() => {
+      const btn = document.getElementById('btnMic');
+      return !btn.disabled && /Speak a command/.test(btn.title);
+    }));
+    await page.click('#btnMic');
+    await page.waitForFunction(() => /Opened "notes"/.test(document.querySelector('#reply').textContent), null, { timeout: 5000 });
+    const spokenOpen = await page.evaluate(() => {
+      const ev = BlobFS.events.filter(e => e.type === 'open');
+      return { cmd: document.getElementById('cmd').value, reply: document.getElementById('reply').textContent,
+               listening: document.getElementById('btnMic').classList.contains('listening'),
+               ev: ev.map(e => ({ text: e.text, via: e.via, local: e.local, id: e.id })) };
+    });
+    check('a spoken "open notes" is handled as a voice command and logged',
+      spokenOpen.cmd === 'open notes' && /Opened "notes" \(text,/.test(spokenOpen.reply) && spokenOpen.listening === false &&
+      spokenOpen.ev.length === 1 && spokenOpen.ev[0].text === 'open "notes" (voice)' && spokenOpen.ev[0].via === 'voice' && spokenOpen.ev[0].local === true,
+      spokenOpen);
+    await page.evaluate(() => { window.__speechTranscript = 'new folder Spoken'; window.__speechError = ''; });
+    await page.click('#btnMic');
+    await page.waitForFunction(() => /Created folder "Spoken"/.test(document.querySelector('#reply').textContent), null, { timeout: 5000 });
+    const spokenFolder = await page.evaluate(() => {
+      const id = BlobFS.byName('Spoken');
+      return { cmd: document.getElementById('cmd').value, reply: document.getElementById('reply').textContent,
+               id: id, type: id && BlobFS.blobs[id].type, top: BlobFS.topLevel().includes(id) };
+    });
+    check('a spoken "new folder Spoken" creates that folder',
+      spokenFolder.cmd === 'new folder Spoken' && /Created folder "Spoken"/.test(spokenFolder.reply) &&
+      spokenFolder.type === 'dir' && spokenFolder.top === true, spokenFolder);
+    await page.close();
+    page = await voicePage({ error: 'not-allowed' });
+    const orbsBeforeDeny = await page.evaluate(() => BlobFS.topLevel().length);
+    await page.click('#btnMic');
+    await page.waitForFunction(() => /microphone permission was denied/.test(document.querySelector('#reply').textContent), null, { timeout: 5000 });
+    const denied = await page.evaluate(() => ({
+      reply: document.getElementById('reply').textContent,
+      cmd: document.getElementById('cmd').value,
+      top: BlobFS.topLevel().length,
+      opens: BlobFS.events.filter(e => e.type === 'open').length
+    }));
+    check('a spoken-command permission error is reported and adds nothing',
+      /Voice: microphone permission was denied/.test(denied.reply) && denied.cmd === '' &&
+      denied.top === orbsBeforeDeny && denied.opens === 0, denied);
     await page.close();
 
     // ---- hygiene ----

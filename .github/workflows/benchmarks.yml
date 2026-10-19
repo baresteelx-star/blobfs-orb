@@ -1,0 +1,51 @@
+name: benchmarks
+
+# Open-time benches are separate from the test workflow: they build multi-megabyte disks and,
+# for the cold series, drop the guest page cache (passwordless sudo on GitHub-hosted runners).
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  open-time:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install Playwright browsers
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium firefox
+      - name: Record environment
+        run: |
+          {
+            echo "date_utc: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "nproc: $(nproc)"
+            grep -m1 "model name" /proc/cpuinfo || true
+            free -h
+            python3 --version
+            node --version
+            echo "playwright: $(node -p "require('playwright/package.json').version")"
+            uname -a
+            . /etc/os-release && echo "os: $PRETTY_NAME"
+          } | tee /tmp/bench-env.txt
+      - name: Warm open times
+        run: bash bench/run_all.sh | tee /tmp/bench-warm.txt
+      - name: Cold open times
+        run: bash bench/run_cold.sh | tee /tmp/bench-cold.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: open-time-benchmarks
+          path: |
+            /tmp/bench-env.txt
+            /tmp/bench-warm.txt
+            /tmp/bench-cold.txt

@@ -1,0 +1,24 @@
+# Warm open-time benchmark, GitHub Actions, 2026-10-19
+# Workflow run: https://github.com/baresteelx-star/blobfs-orb/actions/runs/39296171414 (benchmarks / open-time)
+# Recorded at 2026-10-19T17:41:25Z on GitHub-hosted ubuntu-latest
+# 4 vCPUs, model name INTEL(R) XEON(R) PLATINUM 8573C, 15 GiB RAM, Ubuntu 24.04.5 LTS, kernel 6.17.0-1022-azure
+# Python 3.12.15, Node v20.20.2, Playwright 1.56.1 (installs Chromium 141.0.7390.37 and Firefox 142.0.1)
+# Scripts: bench/run_all.sh, 5 runs, warm page cache
+# Disk bytes: f100 228060, f1000 2305070, f4000 9289070, big100 104858694
+
+-rw-r--r-- 1 runner runner 228060 Oct 19 17:41 /tmp/orb-bench/f100.orb
+{"file": "f100.orb", "runs_ms": [7.5, 6.0, 6.5, 5.7, 5.7], "median_ms": 6.0}
+{"browser":"chromium","file":"f100.orb","runs_ms":[63,56,56,55,66],"reply":"Opened f100.orb: 50 orbs, 150 blobs, 100 payloads (all SHA-256 hashes verified).","pageErrors":[]}
+{"browser":"firefox","file":"f100.orb","runs_ms":[41,29,28,28,29],"reply":"Opened f100.orb: 50 orbs, 150 blobs, 100 payloads (all SHA-256 hashes verified).","pageErrors":[]}
+-rw-r--r-- 1 runner runner 2305070 Oct 19 17:41 /tmp/orb-bench/f1000.orb
+{"file": "f1000.orb", "runs_ms": [64.6, 59.4, 58.1, 57.6, 60.0], "median_ms": 59.4}
+{"browser":"chromium","file":"f1000.orb","runs_ms":[500,494,437,495,447],"reply":"Opened f1000.orb: 500 orbs, 1500 blobs, 1000 payloads (all SHA-256 hashes verified).","pageErrors":[]}
+{"browser":"firefox","file":"f1000.orb","runs_ms":[273,260,272,268,265],"reply":"Opened f1000.orb: 500 orbs, 1500 blobs, 1000 payloads (all SHA-256 hashes verified).","pageErrors":[]}
+-rw-r--r-- 1 runner runner 9289070 Oct 19 17:41 /tmp/orb-bench/f4000.orb
+{"file": "f4000.orb", "runs_ms": [259.4, 252.9, 251.5, 254.7, 255.7], "median_ms": 254.7}
+{"browser":"chromium","file":"f4000.orb","runs_ms":[5618,4181,2403,2352,2397],"reply":"Opened f4000.orb: 2000 orbs, 6000 blobs, 4000 payloads (all SHA-256 hashes verified).","pageErrors":[]}
+{"browser":"firefox","file":"f4000.orb","runs_ms":[2351,2393,2400,2354,2367],"reply":"Opened f4000.orb: 2000 orbs, 6000 blobs, 4000 payloads (all SHA-256 hashes verified).","pageErrors":[]}
+-rw-r--r-- 1 runner runner 104858694 Oct 19 17:41 /tmp/orb-bench/big100.orb
+{"file": "big100.orb", "runs_ms": [156.6, 154.1, 155.3, 155.2, 155.5], "median_ms": 155.3}
+{"browser":"chromium","file":"big100.orb","runs_ms":[758,754,757,752,749],"reply":"Opened big100.orb: 1 orbs, 1 blobs, 1 payloads (all SHA-256 hashes verified).","pageErrors":[]}
+{"browser":"firefox","file":"big100.orb","runs_ms":[1572,1556,1574,1592,1546],"reply":"Opened big100.orb: 1 orbs, 1 blobs, 1 payloads (all SHA-256 hashes verified).","pageErrors":[]}

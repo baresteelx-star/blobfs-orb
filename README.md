@@ -33,7 +33,7 @@ python3 orb.py info demo.orb
 
 ## Tests
 
-The suite is 20 pure-Python tests in [`tests/test_orb.py`](tests/test_orb.py), 12 tests in [`tests/test_crosslang.py`](tests/test_crosslang.py) (9 pure Python and 3 cross-language), and 101 Playwright checks per browser in [`tests/browser_suite.js`](tests/browser_suite.js). The three cross-language tests need Node, the `playwright` package, and Chromium and Firefox. If those are missing they are skipped, not failed. The browser script requires Playwright and exits if it cannot start.
+The suite is 20 pure-Python tests in [`tests/test_orb.py`](tests/test_orb.py), 12 tests in [`tests/test_crosslang.py`](tests/test_crosslang.py) (9 pure Python and 3 cross-language), and 106 Playwright checks per browser in [`tests/browser_suite.js`](tests/browser_suite.js). The three cross-language tests need Node, the `playwright` package, and Chromium and Firefox. If those are missing they are skipped, not failed. The browser script requires Playwright and exits if it cannot start. It includes a sparse 4 GiB file (`truncate`) refused by the page's file input, and spoken commands from a fake Web Speech API.
 
 ```sh
 npm ci
@@ -59,4 +59,4 @@ Cold-cache times drop the guest page cache before every run and need passwordles
 bash bench/run_cold.sh
 ```
 
-Recorded numbers are in [bench/results-2026-10-11.txt](bench/results-2026-10-11.txt) and [bench/results-cold-2026-10-11.txt](bench/results-cold-2026-10-11.txt), and in Section 5 of the paper. Those benchmarks were not re-run for the test-suite change.
+Recorded numbers are in [bench/results-2026-10-11.txt](bench/results-2026-10-11.txt), [bench/results-cold-2026-10-11.txt](bench/results-cold-2026-10-11.txt), [bench/results-2026-10-19.txt](bench/results-2026-10-19.txt), [bench/results-cold-2026-10-19.txt](bench/results-cold-2026-10-19.txt), [bench/results-gha-2026-10-19.txt](bench/results-gha-2026-10-19.txt), and [bench/results-cold-gha-2026-10-19.txt](bench/results-cold-gha-2026-10-19.txt), and in Section 5 of the paper. The 2026-10-11 guest, the 2026-10-19 guest, and the 2026-10-19 GitHub-hosted runner are different machines. GitHub Actions runs the same scripts in [`.github/workflows/benchmarks.yml`](.github/workflows/benchmarks.yml), separately from the test workflow. One successful run of that job (2026-10-19, run 39296171414) is the Actions table in the paper.

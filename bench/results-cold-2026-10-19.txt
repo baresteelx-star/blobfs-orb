@@ -1,0 +1,22 @@
+# Cold-cache open-time benchmark, 2026-10-19
+# Same machine and toolchain as bench/results-2026-10-19.txt
+# Scripts: bench/run_cold.sh. Before every timed run: bench/drop_cache.sh (sync && sudo -n echo 3 > /proc/sys/vm/drop_caches)
+# resident_bytes_before_each_run is mincore(2) via bench/resident.py. All 60 values below are 0.
+# Cold means cold in this guest's page cache. The host may still cache the virtio disk.
+
+-rw-r--r-- 1 ubuntu ubuntu 228060 Oct 19 17:35 /tmp/orb-bench-cold/f100.orb
+{"mode": "cold", "file": "f100.orb", "runs_ms": [6.0, 5.3, 5.4, 4.8, 5.0], "median_ms": 5.3, "resident_bytes_before_each_run": [0, 0, 0, 0, 0]}
+{"mode":"cold","browser":"chromium","file":"f100.orb","runs_ms":[50,41,43,40,39],"reply":"Opened f100.orb: 50 orbs, 150 blobs, 100 payloads (all SHA-256 hashes verified).","pageErrors":[],"resident_bytes_before_each_run":[0,0,0,0,0]}
+{"mode":"cold","browser":"firefox","file":"f100.orb","runs_ms":[25,49,23,26,22],"reply":"Opened f100.orb: 50 orbs, 150 blobs, 100 payloads (all SHA-256 hashes verified).","pageErrors":[],"resident_bytes_before_each_run":[0,0,0,0,0]}
+-rw-r--r-- 1 ubuntu ubuntu 2305070 Oct 19 17:35 /tmp/orb-bench-cold/f1000.orb
+{"mode": "cold", "file": "f1000.orb", "runs_ms": [48.5, 43.4, 41.5, 42.3, 45.2], "median_ms": 43.4, "resident_bytes_before_each_run": [0, 0, 0, 0, 0]}
+{"mode":"cold","browser":"chromium","file":"f1000.orb","runs_ms":[370,425,345,352,375],"reply":"Opened f1000.orb: 500 orbs, 1500 blobs, 1000 payloads (all SHA-256 hashes verified).","pageErrors":[],"resident_bytes_before_each_run":[0,0,0,0,0]}
+{"mode":"cold","browser":"firefox","file":"f1000.orb","runs_ms":[218,207,209,212,206],"reply":"Opened f1000.orb: 500 orbs, 1500 blobs, 1000 payloads (all SHA-256 hashes verified).","pageErrors":[],"resident_bytes_before_each_run":[0,0,0,0,0]}
+-rw-r--r-- 1 ubuntu ubuntu 9289070 Oct 19 17:36 /tmp/orb-bench-cold/f4000.orb
+{"mode": "cold", "file": "f4000.orb", "runs_ms": [208.6, 185.6, 204.6, 192.0, 183.5], "median_ms": 192.0, "resident_bytes_before_each_run": [0, 0, 0, 0, 0]}
+{"mode":"cold","browser":"chromium","file":"f4000.orb","runs_ms":[1848,2012,2026,1864,1954],"reply":"Opened f4000.orb: 2000 orbs, 6000 blobs, 4000 payloads (all SHA-256 hashes verified).","pageErrors":[],"resident_bytes_before_each_run":[0,0,0,0,0]}
+{"mode":"cold","browser":"firefox","file":"f4000.orb","runs_ms":[1894,2027,1928,2043,1900],"reply":"Opened f4000.orb: 2000 orbs, 6000 blobs, 4000 payloads (all SHA-256 hashes verified).","pageErrors":[],"resident_bytes_before_each_run":[0,0,0,0,0]}
+-rw-r--r-- 1 ubuntu ubuntu 104858694 Oct 19 17:36 /tmp/orb-bench-cold/big100.orb
+{"mode": "cold", "file": "big100.orb", "runs_ms": [209.4, 203.8, 197.8, 205.6, 204.4], "median_ms": 204.4, "resident_bytes_before_each_run": [0, 0, 0, 0, 0]}
+{"mode":"cold","browser":"chromium","file":"big100.orb","runs_ms":[756,759,755,783,750],"reply":"Opened big100.orb: 1 orbs, 1 blobs, 1 payloads (all SHA-256 hashes verified).","pageErrors":[],"resident_bytes_before_each_run":[0,0,0,0,0]}
+{"mode":"cold","browser":"firefox","file":"big100.orb","runs_ms":[1452,1451,1473,1446,1524],"reply":"Opened big100.orb: 1 orbs, 1 blobs, 1 payloads (all SHA-256 hashes verified).","pageErrors":[],"resident_bytes_before_each_run":[0,0,0,0,0]}

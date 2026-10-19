@@ -1,0 +1,11 @@
+date_utc: 2026-10-19T17:41:25Z
+nproc: 4
+model name	: INTEL(R) XEON(R) PLATINUM 8573C
+               total        used        free      shared  buff/cache   available
+Mem:            15Gi       1.3Gi        10Gi        47Mi       4.6Gi        14Gi
+Swap:          3.0Gi          0B       3.0Gi
+Python 3.12.15
+v20.20.2
+playwright: 1.56.1
+Linux runnervm8k3b6 6.17.0-1022-azure #22-Ubuntu SMP Mon Jul 27 17:24:03 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+os: Ubuntu 24.04.5 LTS

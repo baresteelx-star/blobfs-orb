@@ -54,6 +54,7 @@ Fixed:
 - Venti's USENIX bibliographic title is "Venti: A New Approach to Archival Data Storage". The proceedings PDF title line omits "Data". The citation now uses the USENIX title and URL. ACM DL `10.5555/1973333.1973340` is not in Crossref.
 - Data Domain's third author is R. Hugo Patterson, not "Patterson, H." alone. Pages 269–282 and FAST 2008 are right.
 - YoloFS given names from Crossref are Shawn (Wanxiang) Zhong, Junxuan Liao, Jing Liu, and Mai Zheng. The previous initials match. SOSP 2026, Prague, pp. 353–378, DOI `10.1145/3830418.3843858` are right.
+- Gifford et al., SOSP 1991: the fourth author is James W. O'Toole. An earlier draft wrote "O'Toole, Jr." Crossref does not include "Jr."
 
 Flagged, not invented:
 

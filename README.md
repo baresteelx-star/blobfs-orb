@@ -8,11 +8,11 @@ The format is implemented twice: [`blobfs-2d.html`](blobfs-2d.html), a browser p
 
 ## Paper
 
-[Merge by Kind, Commit by Hand: The BlobFS File Format](paper/blobfs-paper.md) by Kenneth Santala. Related work and the reference list are in [paper/related-work.md](paper/related-work.md).
+[Merge by Kind, Commit by Hand: The BlobFS File Format](paper/blobfs-paper.md) by Kenneth Santala. Related work and the reference list are in [paper/related-work.md](paper/related-work.md). An arXiv source bundle (LaTeX, bibliography, figure, built PDF, and submission notes) is in [paper/arxiv/](paper/arxiv/). It has not been submitted.
 
 ## Browser demo
 
-Open [`blobfs-2d.html`](blobfs-2d.html) in a browser (a local `file://` URL is enough; the page does not load anything from the network). It starts with a sample disk of eight orbs. Drag one orb onto another to merge. Same-kind drops commit. Different kinds need a shared tag and an Accept. The lime orb is a zorb, a zip: open it to list the entries, unpack to copy them into a new folder.
+Open [`blobfs-2d.html`](blobfs-2d.html) in a browser (a local `file://` URL is enough; the page does not load anything from the network). A GitHub Actions workflow ([`.github/workflows/pages.yml`](.github/workflows/pages.yml)) publishes that page and [`demo.orb`](demo.orb) to [https://baresteelx-star.github.io/blobfs-orb/](https://baresteelx-star.github.io/blobfs-orb/) when the default branch is built. That URL stays empty until the repository owner sets **Settings → Pages → Build and deployment → Source** to **GitHub Actions**. The page does not fetch `demo.orb` by itself; the archive is at [https://baresteelx-star.github.io/blobfs-orb/demo.orb](https://baresteelx-star.github.io/blobfs-orb/demo.orb) for download, then **Open .orb**. The page starts with a sample disk of eight orbs. Drag one orb onto another to merge. Same-kind drops commit. Different kinds need a shared tag and an Accept. The lime orb is a zorb, a zip: open it to list the entries, unpack to copy them into a new folder.
 
 To open the committed archive, click **Open .orb** and choose [`demo.orb`](demo.orb). **Save Orb** downloads `demo.orb.zip`. The command bar takes typed commands (`what can I say?` lists them). Spoken commands use the Web Speech API and are available in Chrome and Edge; typing works in every browser.
 

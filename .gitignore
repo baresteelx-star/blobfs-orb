@@ -2,3 +2,8 @@ node_modules/
 *.pyc
 __pycache__/
 .DS_Store
+paper/arxiv/*.aux
+paper/arxiv/*.log
+paper/arxiv/*.bbl
+paper/arxiv/*.blg
+paper/arxiv/*.out

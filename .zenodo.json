@@ -1,6 +1,6 @@
 {
   "title": "BlobFS",
-  "description": "<p>BlobFS is a file format where files are blobs that merge and split. Merges of different kinds stay proposals until a person accepts them. The .orb archive stores content-addressed payloads. This metadata is for a GitHub release that Zenodo has not minted yet.</p>",
+  "description": "<p>BlobFS is a file format where files are blobs that merge and split. Merges of different kinds stay proposals until a person accepts them. The .orb archive stores content-addressed payloads. The code is MIT. The paper text is a separate work; paper/arxiv/SUBMISSION.md recommends CC BY 4.0 for that text, and this software record does not license the paper. This metadata is for a GitHub release that Zenodo has not minted yet.</p>",
   "creators": [
     {
       "name": "Santala, Kenneth"
@@ -12,5 +12,6 @@
     "archive"
   ],
   "upload_type": "software",
+  "license": "mit",
   "version": "1.0.0"
 }

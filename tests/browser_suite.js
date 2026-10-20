@@ -2,7 +2,8 @@
 // The original 73-check script (2026-10-03) was not kept. This suite covers the behaviors that script
 // was described as testing, plus the format rules in the paper: split math, dedup, name collisions,
 // nesting, recorded refusal, undo-as-event, the local use log, hash/CRC/DEFLATE integrity,
-// a real >= 4 GiB sparse file refused by the file input, and spoken commands from a fake Web Speech API.
+// a real >= 4 GiB sparse file refused by the file input, spoken commands from a fake Web Speech API,
+// and study mode (local session stamp, suggest and bounce lines; off unless asked).
 // usage: node tests/browser_suite.js [chromium] [firefox]     (default: both)
 // Runs the page headless from a local file, prints one line per check, and a JSON summary per browser:
 // {"browser", "checks", "passed", "failed", "runtime_ms"}. Exit code 1 if any check failed.
@@ -696,6 +697,74 @@ async function runBrowser(bname) {
     check('a spoken-command permission error is reported and adds nothing',
       /Voice: microphone permission was denied/.test(denied.reply) && denied.cmd === '' &&
       denied.top === orbsBeforeDeny && denied.opens === 0, denied);
+    await page.close();
+
+    // ---- study mode: off by default; when on, extra local log lines only ----
+    page = await ctx.newPage();
+    page.on('console', m => consoleMsgs.push(m.type() + ': ' + m.text()));
+    page.on('pageerror', e => pageErrors.push(String(e)));
+    await page.goto(PAGE);
+    await page.waitForFunction(() => window.BlobFS && /ready/.test(document.querySelector('#status').textContent));
+    const studyOff = await page.evaluate(() => {
+      const a = BlobFS.byName('notes'), b = BlobFS.byName('photo1');
+      const verdict = BlobFS.resolveDrop(a, b);
+      return { on: BlobFS.study().on, session: BlobFS.study().session, verdict: verdict,
+               stamped: BlobFS.events.some(e => e.study === true),
+               bounces: BlobFS.events.filter(e => e.type === 'bounce').length,
+               suggests: BlobFS.events.filter(e => e.type === 'suggest').length };
+    });
+    check('study mode is off unless asked, and a cross-kind bounce is not logged',
+      studyOff.on === false && studyOff.session === null && studyOff.verdict === 'bounced' &&
+      studyOff.stamped === false && studyOff.bounces === 0 && studyOff.suggests === 0, studyOff);
+    await page.close();
+
+    page = await ctx.newPage();
+    page.on('console', m => consoleMsgs.push(m.type() + ': ' + m.text()));
+    page.on('pageerror', e => pageErrors.push(String(e)));
+    await page.addInitScript(() => { window.__BLOBFS_STUDY = '1'; });
+    await page.goto(PAGE);
+    await page.waitForFunction(() => window.BlobFS && /Study mode/.test(document.querySelector('#status').textContent));
+    const studyOn = await page.evaluate(() => {
+      const st = BlobFS.study();
+      const status = document.querySelector('#status').textContent;
+      BlobFS.pending().forEach(function (p) { BlobFS.keepApart(p.key); });
+      const covers = BlobFS.byName('Covers'), sessions = BlobFS.byName('Sessions');
+      const pendingVerdict = BlobFS.resolveDrop(covers, sessions);
+      const notes = BlobFS.byName('notes'), photo = BlobFS.byName('photo1');
+      const bounceVerdict = BlobFS.resolveDrop(notes, photo);
+      const suggest = BlobFS.events.filter(e => e.type === 'suggest' && e.source === 'drop');
+      const bounce = BlobFS.events.filter(e => e.type === 'bounce');
+      return {
+        on: st.on, session: st.session, status: status,
+        allStamped: BlobFS.events.every(e => e.study === true && e.session === st.session),
+        pendingVerdict: pendingVerdict, bounceVerdict: bounceVerdict,
+        suggest: suggest.map(e => ({ source: e.source, crossKind: e.crossKind, shared: e.shared, session: e.session })),
+        bounce: bounce.map(e => ({ reason: e.reason, text: e.text, session: e.session }))
+      };
+    });
+    check('study mode stamps a local session on every event and says so in the status',
+      studyOn.on === true && /^[0-9a-f]{8}$/.test(studyOn.session) &&
+      studyOn.status.indexOf('Study mode ' + studyOn.session) !== -1 &&
+      /History stays on this machine/.test(studyOn.status) && studyOn.allStamped === true, studyOn);
+    check('study mode logs the cross-kind suggestion and the no-tag bounce',
+      studyOn.pendingVerdict === 'pending' && studyOn.bounceVerdict === 'bounced' &&
+      studyOn.suggest.length === 1 && studyOn.suggest[0].source === 'drop' && studyOn.suggest[0].crossKind === true &&
+      studyOn.suggest[0].shared.indexOf('music') !== -1 && studyOn.suggest[0].session === studyOn.session &&
+      studyOn.bounce.length === 1 && studyOn.bounce[0].reason === 'different-kind' &&
+      /bounced "notes" and "photo1"/.test(studyOn.bounce[0].text) && studyOn.bounce[0].session === studyOn.session,
+      studyOn);
+    const studyDl = page.waitForEvent('download');
+    const studyReply = await page.evaluate(() => BlobFS.run('export history'));
+    const studyFile = await studyDl;
+    const studyPath = path.join(tmp, 'study-' + bname + '.txt');
+    await studyFile.saveAs(studyPath);
+    const studyText = fs.readFileSync(studyPath, 'utf8');
+    check('study mode history export names the session and stays a local file',
+      studyFile.suggestedFilename() === 'blobfs-history.txt' &&
+      studyText.indexOf('Study mode session ' + studyOn.session) !== -1 &&
+      /This file stays on this machine/.test(studyText) && /It has no participant name/.test(studyText) &&
+      /suggested merging/.test(studyText) && /bounced "notes" and "photo1"/.test(studyText) &&
+      /local use-log events/.test(studyReply), { studyReply, head: studyText.split('\n').slice(0, 4) });
     await page.close();
 
     // ---- hygiene ----

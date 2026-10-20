@@ -159,7 +159,7 @@ Refusing it leaves both blobs whole, and the refusal stays in the history.
 \section{Evaluation}
 
 The test suite covers the rules directly.
-Each line below is checked by \texttt{tests/test\_orb.py} (20 tests), \texttt{tests/test\_crosslang.py} (12 tests), \texttt{tests/browser\_suite.js} (106 checks per browser), or more than one of those.
+Each line below is checked by \texttt{tests/test\_orb.py} (20 tests), \texttt{tests/test\_crosslang.py} (12 tests), \texttt{tests/browser\_suite.js} (110 checks per browser), or more than one of those.
 \begin{itemize}
   \item Split math is exact. A file of 2,700,000 bytes and a file of 800,000 bytes merged, then split: the parent lost exactly the child's mass, $800{,}000 + C = 1{,}848{,}576$ bytes, and parent mass plus child mass equaled the merged mass. Half of the two payload sizes is 1,750,000 bytes. That half is neither child's size, and it is not the mass that moved.
   \item The gate works both ways. With no shared tag, orbs held in contact are not proposed and are not merged. With a shared tag, a suggestion forms and waits. Physics can propose and cannot commit. A same-kind drop commits as \texttt{human-drop}. A refusal is recorded.
@@ -183,6 +183,13 @@ Playwright installs a fake \texttt{SpeechRecognition} before the page loads.
 A scripted \texttt{open notes} is logged as \texttt{open "notes" (voice)}.
 A scripted \texttt{new folder Spoken} creates that folder.
 A scripted \texttt{not-allowed} error reports that microphone permission was denied and adds nothing.
+
+On 2026-10-20 the suite grew from 106 checks to 110.
+The four new checks cover study mode, which is off unless asked.
+With it on, events carry a local session id, a cross-kind suggestion and a no-tag bounce are logged, and the history export names the session and says the file stays on the machine.
+Study mode does not change merge rules.
+Both browsers passed 110/110 once (Chromium 11.161\,s, Firefox 16.303\,s) on a 4\,vCPU VM, 15\,GiB RAM, Ubuntu 24.04.5, Node v22.23.3, Playwright 1.56.1.
+No user study was run.
 
 Earlier suite runs are historical and were not repeated as part of the 2026-10-19 pass.
 The original 73-check script (2026-10-03) was not kept, so its runtime was never recorded.
@@ -292,6 +299,9 @@ The tables are not a comparison between them.
 
 No user study has been run.
 This section describes a planned study, and no results are reported or implied.
+A concrete plan for the 2D page only is \texttt{docs/user-study-plan.md}.
+It has not been run.
+The sketch below still includes a 3D condition, and there is no 3D prototype, so that sketch cannot be run as written.
 A small study with 12 to 16 people would use three interfaces in balanced order: BlobFS in 3D, BlobFS in a flat 2D view of the same format, and an ordinary folder window.
 Each participant would organize about 60 files, and a day later find 15 files from short descriptions.
 Measures would include search time and failures, merges, splits, undos, and the share of suggested merges accepted.

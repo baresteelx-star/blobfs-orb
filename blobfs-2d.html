@@ -149,6 +149,8 @@
   var blobs = {};          // id -> blob
   var order = [];          // creation order of ids
   var events = [];         // append-only event log
+  var studyMode = false;   // ?study=1 or #study or window.__BLOBFS_STUDY: extra local log lines only
+  var studySession = null;
   var undoStack = [];      // undoable actions; undo appends an 'undo' event, it never deletes history
   var pending = [];        // [{ key, a, b, source, shared, crossKind }]
   var refused = {};        // pairKey -> true (physics will not re-suggest)
@@ -189,9 +191,23 @@
     return '<span class="sw" style="background:' + c + '"></span>';
   }
 
+  function enableStudyFromEnv() {
+    var flag = '';
+    try { if (window.__BLOBFS_STUDY) flag = String(window.__BLOBFS_STUDY); } catch (e) {}
+    if (!flag) {
+      try {
+        if (new URLSearchParams(location.search).get('study') === '1' || location.hash === '#study') flag = '1';
+      } catch (e2) {}
+    }
+    if (flag === '1' || flag === 'true') {
+      studyMode = true;
+      studySession = ('00000000' + Math.floor(Math.random() * 0x100000000).toString(16)).slice(-8);
+    }
+  }
   function logEvent(type, data, text, ids) {
     var ev = { seq: nextSeq++, time: new Date().toISOString(), type: type, text: text };
     for (var k in data) if (Object.prototype.hasOwnProperty.call(data, k)) ev[k] = data[k];
+    if (studyMode) { ev.study = true; ev.session = studySession; }
     events.push(ev);
     (ids || []).forEach(function (id) { if (blobs[id]) blobs[id].history.push(ev.seq); });
     return ev;
@@ -554,6 +570,9 @@
     if (findPending(a, b)) return null;
     var p = { key: pairKey(a, b), a: a, b: b, source: source, shared: sharedTags(a, b), crossKind: !sameKind(a, b) };
     pending.push(p);
+    if (studyMode) logEvent('suggest', { a: a, b: b, source: source, crossKind: p.crossKind, shared: p.shared.slice() },
+      'suggested merging "' + blobs[a].name + '" and "' + blobs[b].name + '" (' + source +
+      (p.crossKind ? ', different kinds' : ', same kind') + ')');
     renderPending(); markClasses();
     return p;
   }
@@ -593,6 +612,8 @@
     blobs[a].vx = 0; blobs[a].vy = 0;
     push(blobs[a], blobs[b], 14);
     setStatus('Different kinds, no shared tag: bounced apart.');
+    if (studyMode) logEvent('bounce', { a: a, b: b, reason: 'different-kind' },
+      'bounced "' + blobs[a].name + '" and "' + blobs[b].name + '" (different kinds, no shared tag)');
     return 'bounced';
   }
 
@@ -825,7 +846,12 @@
         }
         var gap = d - ra - rb, key = pairKey(A.id, B.id), p = findPending(A.id, B.id);
         if (!p && gap < 26 && !refused[key] && sharedTags(A.id, B.id).length) suggest(A.id, B.id, 'physics');
-        else if (p && p.source === 'physics' && gap > 70) { pending = pending.filter(function (x) { return x !== p; }); renderPending(); markClasses(); }
+        else if (p && p.source === 'physics' && gap > 70) {
+          pending = pending.filter(function (x) { return x !== p; });
+          if (studyMode) logEvent('suggest-dismiss', { a: A.id, b: B.id, source: 'physics', reason: 'separated' },
+            'suggestion expired for "' + A.name + '" and "' + B.name + '" (moved apart)');
+          renderPending(); markClasses();
+        }
       }
     }
     ids.forEach(function (id) {
@@ -962,7 +988,9 @@
   // export: the event log (including the local open/play/export events) as readable text; not reloadable
   function exportHistory() {
     noteUsage('export', null, 'blobfs-history.txt');
-    var lines = ['BlobFS history export, ' + new Date().toISOString(), '', 'Events (' + events.length + ', append-only; open, play and export events are the local use log):'];
+    var lines = ['BlobFS history export, ' + new Date().toISOString()];
+    if (studyMode) lines.push('Study mode session ' + studySession + '. This file stays on this machine. It has no participant name.');
+    lines.push('', 'Events (' + events.length + ', append-only; open, play and export events are the local use log):');
     events.forEach(function (ev) { lines.push('#' + ev.seq + '  ' + ev.time + '  ' + ev.type + '  ' + ev.text); });
     download('blobfs-history.txt', lines.join('\n') + '\n', 'text/plain');
     var uses = events.filter(function (ev) { return ev.local; }).length;
@@ -1655,6 +1683,7 @@
     helpEl = document.getElementById('helpBox');
     cmdEl = document.getElementById('cmd');
     try {
+      enableStudyFromEnv();
       computeBounds();
       sampleDisk();
       initialLayout();
@@ -1705,7 +1734,9 @@
       window.addEventListener('resize', onResize);
       applyView();
       structureChanged();
-      setStatus('BlobFS 2D ready: ' + topLevel().length + ' orbs, ' + order.length + ' blobs.');
+      var ready = 'BlobFS 2D ready: ' + topLevel().length + ' orbs, ' + order.length + ' blobs.';
+      if (studyMode) ready += ' Study mode ' + studySession + '. History stays on this machine.';
+      setStatus(ready);
       window.requestAnimationFrame(tick);
     } catch (e) {
       showError(e);
@@ -1725,7 +1756,8 @@
     unpack: unpack, undo: undo, run: function (t) { runCommand(t, 'api'); return replyEl.textContent; },
     resolveName: resolveName, view: function () { return { z: view.z, tx: view.tx, ty: view.ty }; }, loadOrb: loadOrb,
     buildOrb: buildOrb, sha256: sha256, sha256js: function (u8) { return hex(sha256js(u8)); }, useJsSha: function (on) { forceJsSha = !!on; },
-    undoDepth: function () { return undoStack.length; }, lastLoad: function () { return lastLoad; }, zip32Check: zip32Check, addFiles: function (fs) { return addFiles(fs, 'files'); }
+    undoDepth: function () { return undoStack.length; }, lastLoad: function () { return lastLoad; }, zip32Check: zip32Check, addFiles: function (fs) { return addFiles(fs, 'files'); },
+    study: function () { return { on: studyMode, session: studySession }; }
   };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

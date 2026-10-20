@@ -8,6 +8,7 @@ abstract: >-
 authors:
   - family-names: Santala
     given-names: Kenneth
+license: MIT
 version: 1.0.0
 date-released: "2026-10-19"
 url: "https://github.com/baresteelx-star/blobfs-orb"

@@ -12,6 +12,6 @@ The release, when tagged, is the `.orb` format and the two implementations of it
 
 `pip install .` installs the `orb` command (`verify` and `info`). The package has not been uploaded to PyPI.
 
-The repository has no `LICENSE` file. Add one before publishing to PyPI, and set that license in Zenodo when the release is minted. `.zenodo.json` and `CITATION.cff` intentionally omit a license.
+The code is MIT, copyright 2026 Kenneth Santala (`LICENSE`). That license does not cover the paper. `paper/arxiv/SUBMISSION.md` recommends CC BY 4.0 for the paper text. No Zenodo DOI has been minted.
 
 Verified behavior and open-time numbers are in `paper/blobfs-paper.md`. This changelog does not repeat them.

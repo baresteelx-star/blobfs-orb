@@ -8,7 +8,9 @@ The format is implemented twice: [`blobfs-2d.html`](blobfs-2d.html), a browser p
 
 ## Paper
 
-[Merge by Kind, Commit by Hand: The BlobFS File Format](paper/blobfs-paper.md) by Kenneth Santala. Related work and the reference list are in [paper/related-work.md](paper/related-work.md). An arXiv source bundle (LaTeX, bibliography, figure, built PDF, and submission notes) is in [paper/arxiv/](paper/arxiv/). It has not been submitted.
+[Merge by Kind, Commit by Hand: The BlobFS File Format](paper/blobfs-paper.md) by Kenneth Santala. Related work and the reference list are in [paper/related-work.md](paper/related-work.md). An arXiv source bundle (LaTeX, bibliography, figure, built PDF, and submission notes) is in [paper/arxiv/](paper/arxiv/). It has not been submitted. The code is MIT. The paper is a separate work; the submission notes recommend CC BY 4.0 for the paper text.
+
+A study plan for the 2D page is in [docs/user-study-plan.md](docs/user-study-plan.md). No study has been run.
 
 ## Browser demo
 
@@ -42,7 +44,7 @@ That install is local. The package is not on PyPI. Saved archives still record t
 
 ## Tests
 
-The suite is 20 pure-Python tests in [`tests/test_orb.py`](tests/test_orb.py), 12 tests in [`tests/test_crosslang.py`](tests/test_crosslang.py) (9 pure Python and 3 cross-language), and 106 Playwright checks per browser in [`tests/browser_suite.js`](tests/browser_suite.js). The three cross-language tests need Node, the `playwright` package, and Chromium and Firefox. If those are missing they are skipped, not failed. The browser script requires Playwright and exits if it cannot start. It includes a sparse 4 GiB file (`truncate`) refused by the page's file input, and spoken commands from a fake Web Speech API.
+The suite is 20 pure-Python tests in [`tests/test_orb.py`](tests/test_orb.py), 12 tests in [`tests/test_crosslang.py`](tests/test_crosslang.py) (9 pure Python and 3 cross-language), and 110 Playwright checks per browser in [`tests/browser_suite.js`](tests/browser_suite.js). The three cross-language tests need Node, the `playwright` package, and Chromium and Firefox. If those are missing they are skipped, not failed. The browser script requires Playwright and exits if it cannot start. It includes a sparse 4 GiB file (`truncate`) refused by the page's file input, spoken commands from a fake Web Speech API, and a study-mode flag that only adds local log lines.
 
 ```sh
 npm ci
@@ -69,3 +71,9 @@ bash bench/run_cold.sh
 ```
 
 Recorded numbers are in [bench/results-2026-10-11.txt](bench/results-2026-10-11.txt), [bench/results-cold-2026-10-11.txt](bench/results-cold-2026-10-11.txt), [bench/results-2026-10-19.txt](bench/results-2026-10-19.txt), [bench/results-cold-2026-10-19.txt](bench/results-cold-2026-10-19.txt), [bench/results-gha-2026-10-19.txt](bench/results-gha-2026-10-19.txt), and [bench/results-cold-gha-2026-10-19.txt](bench/results-cold-gha-2026-10-19.txt), and in Section 5 of the paper. The 2026-10-11 guest, the 2026-10-19 guest, and the 2026-10-19 GitHub-hosted runner are different machines. GitHub Actions runs the same scripts in [`.github/workflows/benchmarks.yml`](.github/workflows/benchmarks.yml), separately from the test workflow. One successful run of that job (2026-10-19, run 39296171414) is the Actions table in the paper.
+
+## License
+
+The code is [MIT](LICENSE), copyright 2026 Kenneth Santala. That covers the page, the Python package, the tests, and the other program files.
+
+The paper under `paper/` is not MIT. [paper/arxiv/SUBMISSION.md](paper/arxiv/SUBMISSION.md) recommends CC BY 4.0 for the paper text. The author chooses that license at upload. The paper has not been submitted.

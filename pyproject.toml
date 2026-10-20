@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,6 +7,9 @@ name = "blobfs-orb"
 version = "1.0.0"
 description = "Python reference for the BlobFS .orb file format"
 readme = "README.md"
+# SPDX expression. setuptools>=77 rejects a Trove "License ::" classifier next to this.
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.9"
 authors = [{ name = "Kenneth Santala" }]
 keywords = ["blobfs", "archive", "file-format"]

@@ -21,7 +21,10 @@ If the author would rather lead with the interaction claim, swap those two. No o
 
 ## License
 
-Recommend **CC BY 4.0** for the paper text. The repository has no `LICENSE` file, so that recommendation does not cover the code. arXiv also asks the submitter to grant arXiv a non-exclusive license at upload time; that grant is separate from CC BY. Do not upload until the author chooses.
+Two different licenses:
+
+- **Code** (the program files, tests, and `LICENSE`) is **MIT**, copyright 2026 Kenneth Santala.
+- **This paper** is not under MIT. Recommend **CC BY 4.0** for the paper text. arXiv also asks the submitter to grant arXiv a non-exclusive license at upload time; that grant is separate from CC BY. Do not upload until the author chooses the paper license.
 
 ## Files
 

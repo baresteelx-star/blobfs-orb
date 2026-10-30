@@ -29,11 +29,11 @@ python3 orb.py verify demo.orb
 python3 orb.py info demo.orb
 ```
 
-`verify` checks the magic header, every CRC-32, every payload SHA-256, links, and masses. `info` prints the tree as JSON. In Python, `orb.load(path)` returns a `Disk`; `orb.save(disk, path)` writes one. `Disk.merge` refuses `confirmed_by="physics"`.
+`verify` checks the magic header, every CRC-32, every payload SHA-256, links, masses, and AI-commit scope. `info` prints the tree as JSON. In Python, `orb.load(path)` returns a `Disk`; `orb.save(disk, path)` writes one. `Disk.merge` refuses `confirmed_by="physics"`. A person commits a merge with no delegation. An AI commit (`confirmed_by` `ai`, `ai-…`, or `ai:…`) is stored only when it cites a delegation of that kind and its confidence is above the delegation's threshold. `Disk.delegate(kind, threshold)` and `Disk.revoke(seq)` append those events. Revoking does not erase an earlier AI merge; it rejects later ones.
 
 ## Tests
 
-The suite is 20 pure-Python tests in [`tests/test_orb.py`](tests/test_orb.py), 12 tests in [`tests/test_crosslang.py`](tests/test_crosslang.py) (9 pure Python and 3 cross-language), and 101 Playwright checks per browser in [`tests/browser_suite.js`](tests/browser_suite.js). The three cross-language tests need Node, the `playwright` package, and Chromium and Firefox. If those are missing they are skipped, not failed. The browser script requires Playwright and exits if it cannot start.
+The suite is 28 pure-Python tests in [`tests/test_orb.py`](tests/test_orb.py), 14 tests in [`tests/test_crosslang.py`](tests/test_crosslang.py) (9 pure Python and 5 cross-language), and 115 Playwright checks per browser in [`tests/browser_suite.js`](tests/browser_suite.js). The five cross-language tests need Node, the `playwright` package, and Chromium and Firefox. If those are missing they are skipped, not failed. The browser script requires Playwright and exits if it cannot start.
 
 ```sh
 npm ci

@@ -15,15 +15,24 @@ Record types, in the order they are written:
             hash is the SHA-256 of the payload (null for directories); mass = size + C;
             a directory's size is the sum of its children's masses
   link      {t, parent, child, index}              child order inside a directory
-  merge     {t, time, seq, a, b, result, rule, detail}
+  merge     {t, time, seq, a, b, result, rule, detail, delegation?, confidence?}
   position  {t, id, x, y}                           top-level orbs only; layout is not identity
   refused   {t, key}                                a pair the person kept apart ("b3|b9")
   undo      {t, pos, rec}                           the undo stack, bottom (pos 0) to top
   pending   {t, key, a, b, source, shared, crossKind}   open merge suggestions (never committed)
   event     {t, seq, time, type, text, ...}         the append-only event log
+            delegation {kind, threshold, confirmedBy}
+                a person lets an AI commit merges of that one kind
+            revocation {delegation, kind, confirmedBy}
+                withdraws the delegation with that seq; recorded, never erased
+            an AI merge (confirmedBy "ai", "ai-…", or "ai:…") also carries delegation
+                (that seq) and confidence. It is stored only when both sides are the
+                delegated kind and confidence is above the threshold, and only while
+                that delegation has not been revoked. A person still commits without one.
 
-API:  load(path) -> Disk (verified: CRC, every object rehashed, links, masses), save(disk, path),
-      Disk.merge(a, b), Disk.split(id), Disk.add_file(name, data), Disk.verify().
+API:  load(path) -> Disk (verified: CRC, every object rehashed, links, masses, AI commit scope),
+      save(disk, path), Disk.merge(a, b), Disk.delegate(kind, threshold), Disk.revoke(seq),
+      Disk.split(id), Disk.add_file(name, data), Disk.verify().
 CLI:  python orb.py verify demo.orb      python orb.py info demo.orb
 """
 import datetime
@@ -71,6 +80,29 @@ def fmt_bytes(n):
     if n >= 1e3:
         return "%.1f KB" % (n / 1e3)
     return "%d B" % n
+
+
+def is_ai_actor(confirmed_by):
+    """True for an AI commit: confirmedBy 'ai', or 'ai-' / 'ai:' plus a name."""
+    return isinstance(confirmed_by, str) and (
+        confirmed_by == "ai" or confirmed_by.startswith("ai-") or confirmed_by.startswith("ai:")
+    )
+
+
+def is_person_actor(confirmed_by):
+    """True for a person's commit: confirmedBy 'human', or 'human-' / 'human:' plus a name."""
+    return isinstance(confirmed_by, str) and (
+        confirmed_by == "human" or confirmed_by.startswith("human-") or confirmed_by.startswith("human:")
+    )
+
+
+def finite_number(value):
+    """A real finite number, or None. Booleans are not numbers here (bool is a subclass of int)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if value != value or value == float("inf") or value == float("-inf"):
+        return None
+    return value
 
 
 def kind_from_name(name):
@@ -205,6 +237,7 @@ class Disk:
         for p in self.pending:
             if p["a"] not in self.blobs or p["b"] not in self.blobs:
                 raise OrbError("pending suggestion names a missing blob")
+        self._verify_ai_commits()
         files = [i for i in self.blobs if self.blobs[i]["type"] == "file"]
         return {"blobs": len(self.blobs), "files": len(files), "dirs": len(self.blobs) - len(files),
                 "objects": len(self.objects), "links": sum(len(v) for v in self.children.values()),
@@ -268,9 +301,92 @@ class Disk:
         self._log("create", {"id": id, "blobType": "dir", "name": name, "parent": parent}, 'created directory "%s"' % name, [id])
         return id
 
-    def merge(self, a, b, confirmed_by="human-api"):
+    def delegate(self, kind, threshold, by="human"):
+        """Record that a person allows AI merge commits of one kind above a confidence threshold.
+
+        Delegation is a commit by hand, of authority rather than of a merge. It is an event,
+        so it stays in the log; taking the authority back is a revocation, not an erasure.
+        """
+        if not is_person_actor(by):
+            raise OrbError("delegation is a commit by hand")
+        if not isinstance(kind, str) or not kind:
+            raise OrbError("delegation needs a kind")
+        if finite_number(threshold) is None:
+            raise OrbError("delegation threshold must be a number")
+        text = 'delegated merges of kind "%s" to AI when confidence is above %s (by %s)' % (kind, threshold, by)
+        return self._log("delegation", {"kind": kind, "threshold": threshold, "confirmedBy": by}, text, [])
+
+    def revoke(self, delegation, by="human"):
+        """Append a revocation of a delegation. Later AI commits that cite it are rejected; earlier ones stay."""
+        if not is_person_actor(by):
+            raise OrbError("revocation is a commit by hand")
+        ev = self._delegation_event(delegation, self.events, None)
+        if ev is None:
+            raise OrbError("no delegation #%s" % delegation)
+        if self._delegation_revoked(delegation, self.events, None):
+            raise OrbError("delegation #%s is already revoked" % delegation)
+        text = 'revoked delegation #%s (kind "%s", by %s)' % (delegation, ev.get("kind"), by)
+        return self._log("revocation", {"delegation": delegation, "kind": ev.get("kind"), "confirmedBy": by}, text, [])
+
+    def _delegation_event(self, seq, events, before_seq):
+        for ev in events:
+            if ev.get("type") == "delegation" and ev.get("seq") == seq:
+                if before_seq is not None and not (ev.get("seq", 0) < before_seq):
+                    return None
+                return ev
+        return None
+
+    def _delegation_revoked(self, seq, events, before_seq):
+        """True when a revocation of seq is already in effect for a commit at before_seq.
+
+        before_seq None means 'right now': any revocation counts. A revocation recorded
+        after a commit does not reach back and un-commit it.
+        """
+        for ev in events:
+            if ev.get("type") != "revocation" or ev.get("delegation") != seq:
+                continue
+            if before_seq is None or ev.get("seq", 0) < before_seq:
+                return True
+        return False
+
+    def _kind_pair(self, kinds):
+        if isinstance(kinds, (list, tuple)) and len(kinds) >= 2:
+            return kinds[0], kinds[1]
+        return None, None
+
+    def _require_delegation(self, delegation, confidence, kinds, before_seq=None, events=None):
+        """Reject an AI merge outside the delegation it cites. Raises OrbError; changes nothing."""
+        events = self.events if events is None else events
+        if delegation is None:
+            raise OrbError("AI commit has no delegation reference")
+        ev = self._delegation_event(delegation, events, before_seq)
+        if ev is None:
+            raise OrbError("AI commit references delegation #%s, which is not in the log" % delegation)
+        if self._delegation_revoked(delegation, events, before_seq):
+            raise OrbError("delegation #%s was revoked" % delegation)
+        ka, kb = self._kind_pair(kinds)
+        if ka != ev.get("kind") or kb != ev.get("kind"):
+            raise OrbError('AI commit of kind "%s" + "%s" is outside delegation #%s (kind "%s")'
+                           % (ka, kb, delegation, ev.get("kind")))
+        if finite_number(confidence) is None:
+            raise OrbError("AI commit has no confidence")
+        if not (confidence > ev.get("threshold")):
+            raise OrbError("confidence %s is not above threshold %s" % (confidence, ev.get("threshold")))
+        return ev
+
+    def _verify_ai_commits(self):
+        """Replay the scope rule on the log. A merge is judged by events earlier than it."""
+        for ev in self.events:
+            if ev.get("type") != "merge" or not is_ai_actor(ev.get("confirmedBy")):
+                continue
+            self._require_delegation(ev.get("delegation"), ev.get("confidence"), ev.get("kinds"),
+                                     before_seq=ev.get("seq"), events=self.events)
+
+    def merge(self, a, b, confirmed_by="human-api", delegation=None, confidence=None):
         """dir+dir = ONE directory holding all children of both ('name (2)' on clashes, sub-folders kept whole);
-        file+file = a new directory holding both; file+dir = the directory adopts the file. Physics may not commit."""
+        file+file = a new directory holding both; file+dir = the directory adopts the file.
+        Physics may not commit. An AI commit must cite a live delegation of both sides' kind
+        and a confidence above that delegation's threshold. A person commits without one."""
         if confirmed_by == "physics":
             raise OrbError("physics may propose, never commit")
         A, B = self.blobs.get(a), self.blobs.get(b)
@@ -280,6 +396,8 @@ class Disk:
             raise OrbError("only live top-level orbs merge")
         name_a, name_b = A["name"], B["name"]
         kinds = [self.kind(a), self.kind(b)]
+        if is_ai_actor(confirmed_by):
+            self._require_delegation(delegation, confidence, kinds)
         renames, moved = [], None
         if A["type"] == "dir" and B["type"] == "dir":
             rule = "dir+dir"
@@ -318,6 +436,10 @@ class Disk:
                 "resultMass": self.mass(result), "renamed": renames}
         if moved is not None:
             data["absorbed"] = [a, b]
+        if is_ai_actor(confirmed_by):
+            text += " [delegation #%s, confidence %s]" % (delegation, confidence)
+            data["delegation"] = delegation
+            data["confidence"] = confidence
         ids = []
         for x in (a, b, result):
             if x not in ids:
@@ -389,8 +511,13 @@ class Disk:
                 recs.append({"t": "link", "parent": id, "child": c, "index": i})
         for ev in self.events:
             if ev.get("type") == "merge":
-                recs.append({"t": "merge", "time": ev["time"], "seq": ev["seq"], "a": ev["a"], "b": ev["b"],
-                             "result": ev["result"], "rule": ev["rule"], "detail": ev["text"]})
+                rec = {"t": "merge", "time": ev["time"], "seq": ev["seq"], "a": ev["a"], "b": ev["b"],
+                       "result": ev["result"], "rule": ev["rule"], "detail": ev["text"]}
+                if "delegation" in ev:
+                    rec["delegation"] = ev["delegation"]
+                if "confidence" in ev:
+                    rec["confidence"] = ev["confidence"]
+                recs.append(rec)
         for id in self.top_level():
             if id in self.positions:
                 x, y = self.positions[id]

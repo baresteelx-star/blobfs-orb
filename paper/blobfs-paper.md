@@ -66,6 +66,10 @@ The kind gate: same-kind attraction is the default. Cross-kind fusion requires e
 
 The force model has four terms: typed attraction, size-dependent repulsion (mass-product over distance, so two heavy blobs repel far harder than a heavy and a light one), tag-boosted pull (shared tags double the attraction), and pinning (a force pulling back toward origin). Without the size-dependent repulsion, everything collapses into a single blob. With it, same-type files still fuse while cross-type contact does not swallow everything.
 
+### 4.1 Delegating the commit
+
+BlobFS can extend the commit rule without breaking it. The format already records merges, refusals and undos as events, so a delegation would be just another event type. A delegation event would state that an AI may commit merges of a given kind when its confidence is above a stated threshold. The storage layer would enforce it: every AI commit carries a reference to the delegation that allows it, and any commit outside that scope is rejected by the format. Revocation would be a new event, recorded in the history like any other, so the record shows exactly when authority was handed over and when it was taken back. The person never leaves the record: the AI commits, but the delegation event proves the person chose to let it. Delegation is itself a commit by hand — of authority rather than of a merge. The reference implementation does not yet implement delegation events.
+
 ## 5. Evaluation: Tests
 
 The test suite covers the rules directly. Each line below is checked by `tests/test_orb.py` (20 tests), `tests/test_crosslang.py` (12 tests), `tests/browser_suite.js` (101 checks per browser), or more than one of those:

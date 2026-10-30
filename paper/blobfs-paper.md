@@ -136,15 +136,87 @@ On many small files the page took about 6 to 21 times as long as orb.py and grow
 
 The cold and warm series were run at different times on a shared VM, so the differences between them include run-to-run noise as well as the cost of the disk read.
 
+### 5.1 Planned user study (not yet run)
+
+No user study has been run. This subsection describes a planned study. No participants have been recruited, and no results are reported or implied. The 3D interface is being built separately and does not exist yet. The study cannot start until it does, and it should not start until the 3D and 2D interfaces read and write the same .orb files and pass the same merge-rule checks as the 2D page (Section 5). The detailed plan here goes with the outline in Section 6.
+
+The study has to answer the question the paper leaves open. Section 2 explains why. Browsing in folders is fast and well liked [Bergman et al. 2013], and 3D has slowed retrieval before [Cockburn and McKenzie 2002]. A 3D BlobFS that does worse than folders would not tell us whether the merge operation or the 3D view is to blame. So the 2D view of the same format is the fair control, and ordinary folders are the baseline.
+
+#### Research questions
+
+- **RQ1 (retrieval).** When people look for their own files after a delay, does BlobFS (3D or 2D) differ from ordinary folders in search time and failed searches?
+- **RQ2 (organizing effort).** Does tidying a messy set of files take more or less time and perceived workload with merge-by-contact than with making folders and dragging files into them?
+- **RQ3 (the commit gate).** When the format proposes a cross-kind merge that the task says is wrong (Section 4), do people refuse it? How often do they accept it by mistake, and how often do they undo afterwards?
+- **RQ4 (3D vs 2D).** For the same format and the same merge rules, does the 3D view change time, errors, workload or preference compared with the flat 2D view?
+- **RQ5 (proposals).** What share of the merges the physics suggests do people accept? This is the figure that compares directly with KondoCloud's 25.5% [Brackenbury et al. 2021].
+
+#### Participants
+
+We plan to recruit adults who manage their own files on a desktop or laptop every week. Recruitment would go through university mailing lists and notice boards at the host institution. We would exclude people who have seen or worked on BlobFS, and record each person's self-reported filing habits (mostly folders, mostly search, mostly desktop piles) and any prior use of 3D software or games. Section 6 asks for 12 to 16 people. We plan 12, or 18 if resources allow, because the design below needs a multiple of six to be fully counterbalanced. That count is set by the counterbalancing and by what one lab can run. It does not come from a power analysis. With no pilot data there is no effect size to base one on. The pilot (three people, see Section 6) would give rough variance estimates for task time, and if those suggest the plan is too small, the count will be revised before the main study. With this many people, the study can show large differences and point to design problems. It cannot show that two conditions are equivalent. Payment and consent would follow the host institution's ethics approval, which has not yet been sought.
+
+#### Conditions
+
+The design is within-subjects with three conditions:
+
+- **3D.** BlobFS in the 3D interface now being built.
+- **2D.** BlobFS in the flat view (blobfs-2d.html), with the same .orb format, the same merge rules, the same kind gate and the same amber Accept / Keep apart prompt.
+- **Folders.** The ordinary file manager of the lab machine's operating system.
+
+Each participant gets a different but comparable file set in each condition. Every set holds about 60 files (photos, audio takes, text notes, as in Section 6), with the same mix of kinds, the same number of duplicates and name clashes, and the same depth of starting mess. Any file used to plant a bad merge is built the same way in every set. Real payloads are used, not the placeholders of the built-in sample disk.
+
+#### Counterbalancing
+
+Three conditions have six possible orders. With 12 or 18 participants, each order is used equally often (two or three times), which is full counterbalancing. A 3×3 Latin square balances only position, while all six orders also balance which condition comes before which. That carryover matters here because organizing in one interface may teach habits that show up in the next. The three file sets are crossed with condition by a separate 3×3 Latin square, so that no set is always paired with the same interface. If the final count is not a multiple of six, we would fall back to a balanced Latin square and say so in the report.
+
+#### Tasks
+
+The tasks come from what the paper claims and tests:
+
+1. **Organize a messy folder (T1).** A flat, untidy set of about 60 files. Instruction: "arrange these so you could find things later", with no time pressure. In BlobFS this means merging, splitting, tagging, renaming and creating folders. In Folders it means creating and moving folders. The task covers the three merge rules in Section 4 (directory ∪ directory, file ∪ file making a new directory, file ∪ directory adoption).
+2. **Find files (T2).** Find 15 files from short descriptions ("the second take of the bass line", "the receipt photo from the trip"). This happens once right after T1 and again at the next session, about a day later (Section 6). It is the main comparison with folders.
+3. **Refuse a bad merge (T3, BlobFS conditions only).** The set includes a photo and a song that share a tag by accident. Under Section 4, the neck forms, the merge waits as pending, and nothing moves until a person decides. The participant is told what each file is but not what to do with the prompt, and the correct response is Keep apart. We record the decision, whether it ends up in the history as a refusal, and any later undo. Folders have no proposal step, so T3 is not run there. Any comparison with folders on this task would be invented, so T3 results compare 3D with 2D only.
+4. **Undo a merge (T4).** A merge of two directories that the participant did not want ("you merged Sessions and Masters by mistake; put them back"). In BlobFS the expected path is unmerge, which leaves the merge event in the history (Section 3). In Folders it means moving the files back by hand. We measure whether everything ends up in the right place.
+5. **Handle a name clash (T5).** Combine two groups that each hold a `notes.txt`, then open the right one. This checks whether people read the `notes (2).txt` disambiguator correctly in BlobFS, compared with the operating system's own overwrite or rename dialog in Folders.
+6. **Find a nested item (T6).** Find a file inside a folder that was merged in as a sub-orb, which tests whether people see that nesting survives (Section 3).
+
+Delegation (Section 4.1) is not implemented, so it is not a study task. If it is built before the study, a follow-up study could test whether people understand and revoke a delegation event. This study does not.
+
+#### Metrics
+
+- **Task time.** Logged by the interface for BlobFS (from the event log plus task start and stop markers), and screen-recorded and coded for Folders. Failed or abandoned tasks are recorded separately and not timed as successes.
+- **Error rate.** For T2, wrong files and failed searches (a search is called off after a fixed limit set in the pilot). For T3, accepted bad merges. For T4 to T6, items in the wrong place or the wrong copy opened. Undos and refusals are also counted as behaviour, not as errors.
+- **Workload.** NASA-TLX [Hart and Staveland 1988] after each condition, on all six subscales. We plan to report both the weighted score and the unweighted (raw) score, and to decide in advance which one is primary.
+- **Usability (secondary).** SUS [Brooke 1996] after each condition.
+- **Preference.** A forced ranking of the three conditions at the end, with a reason for each rank given in the debrief interview.
+- **Behaviour (BlobFS only).** Number of merges, splits, undos and refusals, and the share of physics proposals accepted (RQ5), all read from the .orb event log.
+
+#### Protocol
+
+The plan uses four sessions, so that every condition gets a delayed search:
+
+- **Session 1:** consent, a background questionnaire, then condition A. This means training, T1, T3 (BlobFS only), the immediate T2, then the NASA-TLX and SUS.
+- **Sessions 2 and 3:** the delayed T2 for the previous condition, then T4 to T6 in that condition. After that, the next condition starts with training, T1, T3 and the immediate T2, followed by the questionnaires.
+- **Session 4:** the delayed T2 and T4 to T6 for the last condition, then the ranking and a debrief interview of about ten minutes.
+
+Training for each interface uses a separate practice set and continues until the participant has done each operation once without help: merge, split, undo and refusal in BlobFS; create, move and rename in Folders. Delayed tasks always come before new training, so that learning a new interface cannot interfere with recall of the old one. Sessions are planned to last under an hour. The pilot will check that and the number of tasks.
+
+#### Planned analysis
+
+We will fix this plan before running the main study. Task time (log-transformed) will be analysed with linear mixed-effects models: condition as a fixed effect, position in the order as a covariate, and random intercepts for participant and file set. Error and success outcomes will use the binomial form of the same model. NASA-TLX, SUS and preference ranks will be compared with Friedman tests, followed by pairwise Wilcoxon signed-rank tests with Holm correction. The pairs that matter for the research questions are 3D vs 2D (RQ4), 2D vs Folders and 3D vs Folders (RQ1 and RQ2). T3 is analysed for the two BlobFS conditions only. Accepted-proposal shares (RQ5) are reported descriptively next to KondoCloud's figure, not tested against it. We will report effect sizes and confidence intervals as well as p-values. With so few participants, any result that is not significant will be reported as inconclusive, not as evidence of no difference. Interview notes will be coded thematically by two coders.
+
+#### Threats to validity
+
+- **Novelty and familiarity.** Every participant has used folders for years and has never seen BlobFS. Short training cannot remove that difference, and it works against BlobFS. We will report each person's filing habits and analyse by them.
+- **Prototype maturity.** The 3D interface does not exist yet. When the study runs, it will be newer and less polished than the 2D page and much less polished than the operating system's file manager. Some differences may come from polish, not from the design. We would report its version and any known bugs.
+- **Measurement differs by condition.** BlobFS times come from the event log and Folders times from coded video. Both will be checked against video for a subset of tasks.
+- **Experimenter-designed tasks.** The file sets are synthetic and not the participants' own files. Bergman et al. [2013] studied people's own files, which are what folders are good at, so external validity is limited. Planting a bad merge for T3 also tells participants something about what the test is looking at.
+- **Sample.** Volunteers from a university are not typical users, and the small count limits how far the results generalize.
+- **Experimenter bias.** The author built BlobFS. Ideally someone else would run the sessions and code the videos, without being told which hypotheses matter.
+- **Carryover.** Full counterbalancing balances order effects but cannot remove asymmetric transfer between two BlobFS views of the same format. We will check whether the order interacts with condition.
+
 ## 6. Future Work: Planned User Study
 
-No user study has been run; this section describes a planned study, and no results are reported or implied. A small study with 12 to 16 people would turn the design paper into a research paper. Each participant would use three interfaces in balanced order: BlobFS in 3D, BlobFS in a flat 2D view of the same format, and an ordinary folder window. The 2D condition separates the effect of the merge operation from the effect of 3D.
-
-Planned procedure: give each participant a realistic set of about 60 files (photos, audio takes, text notes) with a different but comparable set per interface. Ask them to organize however they like, no time pressure. A day later, ask them to find 15 files from short descriptions, timing each search and noting failures. Finish with a questionnaire on effort and ease, and a ten-minute interview.
-
-Planned measures: time and failures when finding files a day later (the main comparison with folders); number of merges, splits, and undos (shows whether people use fusion and how often they reverse it); share of suggested merges accepted (directly comparable with KondoCloud's 25.5%); perceived effort and ease (folders are known to be low-effort, so this is the fair test).
-
-Practical steps (not yet taken): run a pilot with three people first. The study needs ethics approval from whichever university hosts it; an HCI group would normally handle that.
+No user study has been run. The planned study is described in Section 5.1. In outline: 12 to 16 participants, each using BlobFS in 3D, BlobFS in 2D and an ordinary folder window in balanced order, with about 60 files (photos, audio takes, text notes) per interface and a delayed search about a day later. A pilot with three people comes first, and ethics approval has not yet been sought.
 
 ## 7. Limitations
 
@@ -169,7 +241,7 @@ BlobFS combines kind-typed fusion of distinct objects into a new stored containe
 
 ## References
 
-[Full reference list in paper/related-work.md, references 1–37.]
+[Full reference list in paper/related-work.md, references 1–39.]
 
 ---
 

@@ -20,6 +20,16 @@ To open the committed archive, click **Open .orb** and choose [`demo.orb`](demo.
 
 ![Suggestion, merge, then the zorb inspector](docs/blobfs-2d.gif)
 
+## 3D browser demo
+
+Open [`blobfs-3d.html`](blobfs-3d.html). It loads Three.js and OrbitControls from a CDN, so the page needs network access. A local server avoids browsers that block CDN scripts from a `file://` URL:
+
+```sh
+python3 -m http.server 8765
+```
+
+Then visit `http://localhost:8765/blobfs-3d.html`. Drag empty space to orbit, scroll to zoom, and drag a blob to move it. Blobs drift together using the 2D similarity rule: a shared tag pulls strongly, and the same concrete kind pulls weakly. An empty folder does not attract every blob. When a similar pair meets, the page **proposes** the merge, highlights both spheres, and waits. **Accept** plays the merge animation and commits it with the same file+file, dir+dir, and file+dir rules as the 2D page. **Refuse** keeps that pair apart and does not propose it again. **Save Orb** and **Open .orb** read and write the same `.orb` zip (`demo.orb` included). Saved positions keep the 2D pixel `x`/`y`; `z` is the extra height, which the 2D page and `orb.py` ignore.
+
 ## Python reference
 
 `orb.py` reads and writes the same `.orb` zip. From the repository root:

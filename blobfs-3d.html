@@ -1,0 +1,1641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlobFS 3D</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: #0d1117; color: #e6edf3; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+  #view { position: fixed; left: 0; top: 0; display: block; touch-action: none; }
+  #msg { position: fixed; left: 16px; top: 46%; transform: translateY(-50%); max-width: 420px; font-size: 16px; color: #f85149; display: none; z-index: 6; }
+  #proposal { position: fixed; top: 14px; left: 14px; z-index: 5; max-width: min(560px, calc(100vw - 360px));
+    background: rgba(22,27,34,0.94); border: 1px solid #d29922; border-radius: 10px; padding: 10px 12px;
+    box-shadow: 0 0 0 1px rgba(210,153,34,0.25), 0 10px 30px rgba(0,0,0,0.35); }
+  #proposal[hidden] { display: none; }
+  #proposalText { font-size: 13px; line-height: 1.4; margin-bottom: 8px; }
+  #proposalText strong { color: #d29922; }
+  #proposal .row { margin: 0; }
+  #status { position: fixed; bottom: 10px; left: 10px; z-index: 4; background: rgba(22,27,34,0.9); border: 1px solid #30363d; border-radius: 6px; padding: 4px 8px; font-size: 11px; color: #8b949e; max-width: min(640px, calc(100% - 360px)); }
+  #panel { position: fixed; top: 12px; right: 12px; width: 312px; bottom: 12px; z-index: 4; background: rgba(22,27,34,0.96); border: 1px solid #30363d; border-radius: 8px; padding: 12px; font-size: 12px; overflow-y: auto; }
+  @media (max-width: 760px) {
+    #panel { width: 220px; padding: 8px; }
+    #proposal { max-width: calc(100vw - 250px); }
+    #status { max-width: calc(100% - 250px); }
+  }
+  #panel h2 { font-size: 15px; margin: 2px 0 8px; color: #58a6ff; }
+  #panel h3 { font-size: 12px; margin: 10px 0 4px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.04em; }
+  #panel a { color: #58a6ff; }
+  .row { display: flex; gap: 5px; margin-bottom: 6px; flex-wrap: wrap; }
+  button { background: #21262d; border: 1px solid #30363d; color: #e6edf3; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 12px; }
+  button:hover { background: #30363d; }
+  button:disabled { opacity: 0.45; cursor: default; }
+  button.primary { background: #1f6feb; border-color: #1f6feb; }
+  button.primary:hover { background: #388bfd; }
+  button.lime { background: #3f6212; border-color: #84cc16; }
+  button.lime:hover { background: #4d7c0f; }
+  .suggestion { background: rgba(210,153,34,0.15); border: 1px solid #d29922; border-radius: 6px; padding: 6px; margin-bottom: 6px; }
+  .suggestion .reason { color: #d29922; font-size: 11px; margin-bottom: 5px; }
+  .muted { color: #8b949e; }
+  #inspector dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; }
+  #inspector dt { color: #8b949e; }
+  #inspector dd { word-break: break-word; }
+  .child-link { color: #58a6ff; cursor: pointer; text-decoration: underline; margin-right: 6px; }
+  #colorKey { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 10px; }
+  #colorKey li { display: flex; align-items: center; gap: 4px; }
+  .sw { display: inline-block; width: 11px; height: 11px; border-radius: 50%; border: 1px solid rgba(230,237,243,0.35); flex: none; }
+  #history { list-style: none; max-height: 160px; overflow-y: auto; font-size: 11px; border: 1px solid #30363d; border-radius: 6px; padding: 4px 6px; }
+  #history li { padding: 2px 0; border-bottom: 1px solid #21262d; }
+  #history li .t { color: #d2a8ff; font-weight: 600; margin-right: 4px; }
+  .hint { color: #8b949e; font-size: 11px; margin-top: 8px; line-height: 1.4; }
+  .hidden-input { display: none; }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div id="msg"></div>
+<div id="proposal" hidden>
+  <div id="proposalText"></div>
+  <div class="row">
+    <button class="primary" id="btnAccept" type="button">Accept</button>
+    <button id="btnRefuse" type="button">Refuse</button>
+  </div>
+</div>
+<div id="status">loading…</div>
+<div id="panel">
+  <h2>BlobFS 3D</h2>
+  <div class="row">
+    <button class="primary" id="btnNew" type="button">New Blob</button>
+    <button id="btnSplit" type="button">Split Selected</button>
+    <button id="btnSave" type="button">Save Orb</button>
+  </div>
+  <div class="row">
+    <button id="btnRename" type="button">Rename</button>
+    <button id="btnTag" type="button">Tag</button>
+    <button id="btnUndo" type="button">Undo</button>
+    <button id="btnFolder" type="button">New Folder</button>
+  </div>
+  <div class="row">
+    <button id="btnAddFiles" type="button">Add files</button>
+    <button id="btnOpenOrb" type="button">Open .orb</button>
+  </div>
+  <input class="hidden-input" id="inFiles" type="file" multiple>
+  <input class="hidden-input" id="inOrb" type="file" accept=".orb,.zip,.json,application/zip,application/json">
+  <h3>Colour key</h3>
+  <ul id="colorKey"></ul>
+  <h3>Proposed merge</h3>
+  <div id="pendingList"><div class="muted">none</div></div>
+  <h3>Selected</h3>
+  <div id="inspector"><div class="muted">Click a blob to inspect it.</div></div>
+  <h3>History</h3>
+  <ul id="history"></ul>
+  <div class="hint">Blobs drift together by the same similarity the 2D demo uses. A shared tag pulls strongly. The same concrete kind (image with image, audio with audio) pulls weakly. An empty folder does not attract every blob, and different kinds with no shared tag bounce apart. When a similar pair meets, BlobFS <strong>proposes</strong> the merge and highlights both spheres. Nothing combines until you press <strong>Accept</strong>, which plays the merge and then commits it with the 2D rules (file+file, dir+dir, file+dir). <strong>Refuse</strong> pushes them apart and will not propose that pair again. Drag a blob to move it. Drag the empty space to orbit, scroll to zoom. Save Orb / Open .orb use the same .orb zip as <a href="blobfs-2d.html">blobfs-2d.html</a>. Physics may propose, never commit.</div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // Same model constants and merge rules as blobfs-2d.html.
+  // Physics may propose a merge. Only Accept (confirmedBy human-accept) commits it.
+  // merge() throws if confirmedBy is "physics", matching orb.py.
+  var BODY = 1024 * 1024;
+  var KINDS = ['image', 'audio', 'text', 'zip', 'video', 'other'];
+  var KIND_COLORS = { dir: '#3a3f47', image: '#2b4a6b', audio: '#4b2f6b', text: '#2f5b3a', zip: '#84cc16', video: '#7a2f45', other: '#6b5a2f' };
+  var KIND_LABELS = { dir: 'dir (empty / mixed)', zip: 'zip (zorb)' };
+  var EXT_KINDS = {
+    image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'heic', 'tif', 'tiff', 'avif'],
+    audio: ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac', 'aif', 'aiff', 'opus'],
+    text: ['txt', 'md', 'json', 'csv', 'html', 'htm', 'js', 'css', 'xml', 'yml', 'yaml', 'py', 'tex', 'rtf', 'log', 'ts'],
+    zip: ['zip'],
+    video: ['mp4', 'mov', 'webm', 'mkv', 'avi']
+  };
+  // Saved x/y sit in the same pixel space the 2D page uses. z is the 3D height;
+  // blobfs-2d.html and orb.py ignore it. Layout is not identity.
+  var PIX_CX = 480, PIX_CY = 320, PIX_SCALE = 36;
+  var REACH = 12, PULL_K = 3.15, PROPOSE_GAP = 0.72, WORLD_LIM = 8.6;
+
+  var blobs = {}, order = [], events = [], undoStack = [], pending = [], refused = {};
+  var nextId = 1, nextSeq = 1, selected = null, featuredKey = null;
+  var anim = null, shock = null, drag = null, cooldown = 0, wanderEnabled = true, paused = false, focus = null;
+  var groups = {}, beams = [], beamSig = '';
+
+  var canvas, panel, msgEl, statusEl;
+  var renderer, scene, camera, controls, clock, raycaster, pointer;
+  var dragPlane, flashMesh, shockMesh;
+  var booted = false;
+
+  var AMP = String.fromCharCode(38);
+  var ENT = { '&': 'amp', '<': 'lt', '>': 'gt', '"': 'quot', "'": '#39' };
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return AMP + ENT[c] + ';'; }); }
+  function fmtBytes(n) {
+    if (n >= 1e6) return (n / 1e6).toFixed(2) + ' MB';
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + ' KB';
+    return n + ' B';
+  }
+  function pairKey(a, b) { return a < b ? a + '|' + b : b + '|' + a; }
+  function kindFromName(name) {
+    var m = /\.([A-Za-z0-9]+)$/.exec(String(name));
+    if (!m) return 'other';
+    var e = m[1].toLowerCase();
+    for (var k in EXT_KINDS) if (EXT_KINDS[k].indexOf(e) !== -1) return k;
+    return 'other';
+  }
+  function extOf(name) { var m = /(\.[A-Za-z0-9]{1,5})$/.exec(String(name)); return m ? m[1] : ''; }
+  function stripExt(name) { var e = extOf(name); return e ? String(name).slice(0, -e.length) : String(name); }
+  function swatch(kind) {
+    var c = KIND_COLORS[kind === 'empty' || kind === 'mixed' ? 'dir' : kind] || KIND_COLORS.other;
+    return '<span class="sw" style="background:' + c + '"></span>';
+  }
+  function setStatus(t) { if (statusEl) statusEl.textContent = t; }
+  function showError(e) {
+    if (!msgEl) return;
+    msgEl.style.display = 'block';
+    msgEl.textContent = 'Error: ' + (e && e.message ? e.message : String(e));
+  }
+
+  function logEvent(type, data, text, ids) {
+    var ev = { seq: nextSeq++, time: new Date().toISOString(), type: type, text: text };
+    for (var k in data) if (Object.prototype.hasOwnProperty.call(data, k)) ev[k] = data[k];
+    events.push(ev);
+    (ids || []).forEach(function (id) { if (blobs[id]) blobs[id].history.push(ev.seq); });
+    return ev;
+  }
+
+  function makeBlob(type, name, kind, size, tags) {
+    var id = 'b' + (nextId++);
+    blobs[id] = { id: id, type: type, name: name, kind: type === 'file' ? kind : null, size: type === 'file' ? size : 0,
+      tags: (tags || []).slice(), children: [], parent: null, history: [], rings: 0, autoName: false,
+      entries: null, gone: false, file: null, placeholder: false, src: null, zipRef: null,
+      x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0 };
+    if (type === 'file' && kind === 'zip') blobs[id].entries = [];
+    order.push(id);
+    return id;
+  }
+  function createFile(name, kind, size, tags, parentId, entries) {
+    var id = makeBlob('file', name, kind, size, tags);
+    if (entries) blobs[id].entries = entries.map(function (e) { return { name: e.name, kind: e.kind, size: e.size }; });
+    if (parentId) attach(parentId, id);
+    logEvent('create', { id: id, blobType: 'file', kind: kind, name: blobs[id].name, size: size, parent: parentId || null,
+      entries: entries ? entries.length : undefined },
+      'created file "' + blobs[id].name + '" (' + kind + (entries ? ', ' + entries.length + ' entries' : '') + ')' +
+      (parentId ? ' in "' + blobs[parentId].name + '"' : ''), [id]);
+    return id;
+  }
+  function createDir(name, tags, parentId) {
+    var id = makeBlob('dir', name, null, 0, tags);
+    if (parentId) attach(parentId, id);
+    logEvent('create', { id: id, blobType: 'dir', name: blobs[id].name, parent: parentId || null },
+      'created directory "' + blobs[id].name + '"' + (parentId ? ' in "' + blobs[parentId].name + '"' : ''), [id]);
+    return id;
+  }
+
+  function contentSize(id) {
+    var b = blobs[id];
+    if (b.type === 'file') return b.size;
+    var s = 0;
+    for (var i = 0; i < b.children.length; i++) s += massOf(b.children[i]);
+    return s;
+  }
+  function massOf(id) { return BODY + contentSize(id); }
+  function kindOf(id) {
+    var b = blobs[id];
+    if (b.type === 'file') return b.kind;
+    var set = {};
+    (function walk(x) {
+      blobs[x].children.forEach(function (c) { if (blobs[c].type === 'file') set[blobs[c].kind] = 1; else walk(c); });
+    })(id);
+    var ks = Object.keys(set);
+    return ks.length === 0 ? 'empty' : (ks.length === 1 ? ks[0] : 'mixed');
+  }
+  function sameKind(a, b) {
+    var ka = kindOf(a), kb = kindOf(b);
+    return ka === kb || ka === 'empty' || kb === 'empty';
+  }
+  // Concrete kind ignores the 2D empty-folder wildcard, so an empty directory does not pull every blob.
+  function concreteSame(a, b) {
+    var ka = kindOf(a), kb = kindOf(b);
+    return ka === kb && ka !== 'empty' && ka !== 'mixed';
+  }
+  function sharedTags(a, b) {
+    var tb = blobs[b].tags;
+    return blobs[a].tags.filter(function (t) { return tb.indexOf(t) !== -1; });
+  }
+  function pullOf(a, b) { return sharedTags(a, b).length * 1 + (concreteSame(a, b) ? 0.45 : 0); }
+  function canPropose(a, b) {
+    if (!blobs[a] || !blobs[b] || a === b) return false;
+    if (blobs[a].parent || blobs[b].parent || blobs[a].gone || blobs[b].gone) return false;
+    if (refused[pairKey(a, b)]) return false;
+    if (sharedTags(a, b).length) return true;
+    return concreteSame(a, b);
+  }
+  function topLevel() { return order.filter(function (id) { return blobs[id].parent === null && !blobs[id].gone; }); }
+  function inFocus(id) { return !focus || !!focus[id]; }
+  function topAncestor(id) { while (blobs[id].parent) id = blobs[id].parent; return id; }
+  function isLive(id) { return !!blobs[id] && !blobs[topAncestor(id)].gone; }
+  function isZorb(id) { var b = blobs[id]; return !!b && b.type === 'file' && b.kind === 'zip'; }
+  function pickName(taken, name) {
+    if (!taken[name]) return name;
+    var m = /^(.*?)(\.[A-Za-z0-9]+)?$/.exec(name);
+    var base = m[1], ext = m[2] || '';
+    for (var i = 2; ; i++) { var n = base + ' (' + i + ')' + ext; if (!taken[n]) return n; }
+  }
+  function uniqueName(parentId, name, exceptId) {
+    var taken = {};
+    blobs[parentId].children.forEach(function (c) { if (c !== exceptId) taken[blobs[c].name] = 1; });
+    return pickName(taken, name);
+  }
+  function topUniqueName(name) {
+    var taken = {};
+    topLevel().forEach(function (id) { taken[blobs[id].name] = 1; });
+    return pickName(taken, name);
+  }
+  function attach(parentId, childId) {
+    var c = blobs[childId], old = c.name;
+    c.name = uniqueName(parentId, c.name);
+    c.parent = parentId;
+    blobs[parentId].children.push(childId);
+    return old !== c.name ? { from: old, to: c.name } : null;
+  }
+  function unionTags(x, y) { var o = x.slice(); y.forEach(function (t) { if (o.indexOf(t) === -1) o.push(t); }); return o; }
+  function radiusOf(id) {
+    var r = 0.52 * Math.cbrt(massOf(id) / BODY);
+    return Math.max(0.34, Math.min(r, 1.35));
+  }
+  function clampPos(b) {
+    var d = Math.sqrt(b.x * b.x + b.y * b.y + b.z * b.z);
+    if (d > WORLD_LIM) { var k = WORLD_LIM / d; b.x *= k; b.y *= k; b.z *= k; }
+  }
+  function placeNear(b, ref) {
+    var ang = Math.random() * Math.PI * 2, el = (Math.random() - 0.5) * 0.7, d = 1.7 + Math.random() * 0.7;
+    if (!ref) {
+      b.x = (Math.random() - 0.5) * 4; b.y = (Math.random() - 0.5) * 2; b.z = (Math.random() - 0.5) * 4;
+    } else {
+      b.x = ref.x + Math.cos(ang) * d; b.y = ref.y + el; b.z = ref.z + Math.sin(ang) * d;
+    }
+    b.vx = b.vy = b.vz = 0;
+    clampPos(b);
+  }
+  function initialLayout(onlyIds) {
+    var ids = onlyIds || topLevel(), n = ids.length, R = 5.6;
+    ids.forEach(function (id, i) {
+      var b = blobs[id];
+      var y = n === 1 ? 0 : 1 - (i / Math.max(1, n - 1)) * 2;
+      var rad = Math.sqrt(Math.max(0, 1 - y * y));
+      var theta = Math.PI * (1 + Math.sqrt(5)) * (i + 0.5);
+      b.x = Math.cos(theta) * rad * R;
+      b.y = y * R * 0.62;
+      b.z = Math.sin(theta) * rad * R;
+      b.vx = b.vy = b.vz = 0;
+    });
+  }
+
+  function removePendingFor(ids) {
+    pending = pending.filter(function (p) { return ids.indexOf(p.a) === -1 && ids.indexOf(p.b) === -1; });
+  }
+  function merge(a, b, confirmedBy) {
+    if (confirmedBy === 'physics') throw new Error('physics may propose, never commit');
+    var A = blobs[a], B = blobs[b];
+    if (!A || !B || a === b) throw new Error('bad merge');
+    if (A.parent || B.parent) throw new Error('only top-level orbs merge');
+    var result, rule, renames = [], nameA = A.name, nameB = B.name, moved = null;
+    var mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2, mz = (A.z + B.z) / 2;
+    var kinds = [kindOf(a), kindOf(b)];
+    if (A.type === 'dir' && B.type === 'dir') {
+      rule = 'dir+dir';
+      result = makeBlob('dir', B.name + ' + ' + A.name, null, 0, unionTags(A.tags, B.tags));
+      blobs[result].autoName = true;
+      blobs[result].rings = Math.max(A.rings, B.rings);
+      moved = [];
+      [b, a].forEach(function (srcId) {
+        blobs[srcId].children.slice().forEach(function (c) {
+          moved.push({ child: c, from: srcId, name: blobs[c].name });
+          renames.push(attach(result, c));
+        });
+        blobs[srcId].children = [];
+        blobs[srcId].gone = true;
+      });
+    } else if (A.type === 'file' && B.type === 'file') {
+      rule = 'file+file';
+      result = makeBlob('dir', B.name + ' + ' + A.name, null, 0, unionTags(A.tags, B.tags));
+      blobs[result].autoName = true;
+      renames.push(attach(result, b)); renames.push(attach(result, a));
+    } else {
+      rule = 'file+dir';
+      var d = A.type === 'dir' ? a : b, f = d === a ? b : a;
+      result = d;
+      renames.push(attach(d, f));
+    }
+    var R = blobs[result];
+    R.x = mx; R.y = my; R.z = mz; R.vx = 0; R.vy = 0; R.vz = 0;
+    R.rings += 1;
+    renames = renames.filter(Boolean);
+    removePendingFor([a, b]);
+    var ev = logEvent('merge', { a: a, b: b, result: result, rule: rule, confirmedBy: confirmedBy, kinds: kinds,
+      resultMass: massOf(result), renamed: renames, absorbed: moved ? [a, b] : undefined },
+      'merged "' + nameA + '" + "' + nameB + '" → "' + R.name + '" (' + rule + ', by ' + confirmedBy + ')' +
+      (renames.length ? '; renamed ' + renames.map(function (r) { return '"' + r.from + '"→"' + r.to + '"'; }).join(', ') : ''),
+      [a, b, result].filter(function (x, i, arr) { return arr.indexOf(x) === i; }));
+    undoStack.push({ op: 'merge', seq: ev.seq, rule: rule, a: a, b: b, result: result, nameA: nameA, nameB: nameB, moved: moved,
+      ax: A.x, ay: A.y, az: A.z, bx: B.x, by: B.y, bz: B.z });
+    selected = result;
+    clampPos(R);
+    structureChanged();
+    return result;
+  }
+
+  function split(id) {
+    var b = blobs[id];
+    if (!b) throw new Error('nothing selected');
+    var parentId, childId;
+    if (b.parent) { parentId = b.parent; childId = id; }
+    else if (b.type === 'dir' && b.children.length) { parentId = id; childId = b.children[b.children.length - 1]; }
+    else throw new Error('select a directory with children, or a child orb');
+    var P = blobs[parentId], C = blobs[childId];
+    var before = massOf(parentId), cm = massOf(childId);
+    var anchor = blobs[topAncestor(parentId)];
+    var index = P.children.indexOf(childId);
+    P.children = P.children.filter(function (x) { return x !== childId; });
+    C.parent = null;
+    var after = massOf(parentId);
+    if (before - after !== cm) throw new Error('split math mismatch');
+    var ang = Math.random() * Math.PI * 2;
+    var dist = radiusOf(anchor.id) + radiusOf(childId) + 0.7;
+    C.x = anchor.x + Math.cos(ang) * dist; C.z = anchor.z + Math.sin(ang) * dist; C.y = anchor.y + (Math.random() - 0.5) * 0.6;
+    C.vx = C.vy = C.vz = 0;
+    clampPos(C);
+    var ev = logEvent('split', { parent: parentId, child: childId, childMass: cm, parentMassBefore: before, parentMassAfter: after },
+      'split "' + C.name + '" out of "' + P.name + '" (parent lost ' + fmtBytes(cm) + ')', [parentId, childId]);
+    undoStack.push({ op: 'split', seq: ev.seq, parent: parentId, child: childId, index: index });
+    selected = childId;
+    structureChanged();
+    return childId;
+  }
+  function keepExt(oldName, newName) {
+    var ext = extOf(oldName);
+    if (!ext) return newName;
+    if (newName.toLowerCase().slice(-ext.length) === ext.toLowerCase()) return newName;
+    return newName + ext;
+  }
+  function rename(id, name) {
+    var b = blobs[id];
+    name = String(name || '').trim();
+    if (!b || !name) return false;
+    if (b.type === 'file') name = keepExt(b.name, name);
+    if (name === b.name) return false;
+    var old = b.name;
+    b.name = b.parent ? uniqueName(b.parent, name, id) : name;
+    b.autoName = false;
+    var ev = logEvent('rename', { id: id, from: old, to: b.name, kind: kindOf(id) }, 'renamed "' + old + '" → "' + b.name + '"', [id]);
+    undoStack.push({ op: 'rename', seq: ev.seq, id: id, from: old, to: b.name });
+    structureChanged();
+    return true;
+  }
+  function addTag(id, tag) {
+    var b = blobs[id];
+    tag = String(tag || '').trim();
+    if (!b || !tag || b.tags.indexOf(tag) !== -1) return false;
+    b.tags.push(tag);
+    var ev = logEvent('tag', { id: id, tag: tag }, 'tagged "' + b.name + '" with "' + tag + '"', [id]);
+    undoStack.push({ op: 'tag', seq: ev.seq, id: id, tag: tag });
+    structureChanged();
+    return true;
+  }
+  function newFolder(name) {
+    name = topUniqueName(String(name || '').trim() || 'New folder');
+    var id = makeBlob('dir', name, null, 0, []);
+    placeNear(blobs[id]);
+    var ev = logEvent('create', { id: id, blobType: 'dir', name: name }, 'created directory "' + name + '"', [id]);
+    undoStack.push({ op: 'create', seq: ev.seq, ids: [id], what: 'folder "' + name + '"' });
+    selected = id;
+    structureChanged();
+    return id;
+  }
+  function unpack(id) {
+    var Z = blobs[id];
+    if (!isZorb(id)) throw new Error('"' + (Z ? Z.name : id) + '" is not a zip');
+    var entries = Z.entries || [];
+    if (!entries.length) throw new Error('"' + Z.name + '" has no listed contents to unpack');
+    var folderName = topUniqueName(stripExt(Z.name) || 'unpacked');
+    var dir = makeBlob('dir', folderName, null, 0, Z.tags.slice());
+    var renames = [], fileIds = [];
+    entries.forEach(function (e) {
+      var base = String(e.name).split('/').pop() || 'file';
+      var fid = makeBlob('file', base, e.kind || kindFromName(base), e.size, []);
+      blobs[fid].src = (Z.src || Z.name) + ':' + e.name;
+      if (Z.file && !Z.placeholder) blobs[fid].zipRef = { blob: Z.file, entry: e.name };
+      var r = attach(dir, fid);
+      if (r) renames.push(r);
+      fileIds.push(fid);
+    });
+    var anchor = blobs[topAncestor(id)], D = blobs[dir];
+    placeNear(D, anchor);
+    var total = fileIds.reduce(function (s, f) { return s + blobs[f].size; }, 0);
+    var ev = logEvent('unpack', { zip: id, folder: dir, files: fileIds, sizes: fileIds.map(function (f) { return blobs[f].size; }), renamed: renames },
+      'unpacked "' + Z.name + '" into new folder "' + folderName + '" (' + fileIds.length + ' files, ' + fmtBytes(total) + ')' +
+      (renames.length ? '; renamed ' + renames.map(function (r) { return '"' + r.from + '"→"' + r.to + '"'; }).join(', ') : '') + '; zip unchanged',
+      [id, dir].concat(fileIds));
+    undoStack.push({ op: 'create', seq: ev.seq, ids: [dir], what: 'folder "' + folderName + '" from unpack' });
+    selected = dir;
+    structureChanged();
+    return dir;
+  }
+
+  function undo() {
+    if (anim) return { ok: false, msg: 'Wait for the merge animation to finish.' };
+    var rec = undoStack[undoStack.length - 1];
+    if (!rec) return { ok: false, msg: 'Nothing to undo.' };
+    undoStack.pop();
+    var text, ids = [], problem = null;
+    if (rec.op === 'merge' && rec.rule === 'dir+dir') {
+      var RD = blobs[rec.result];
+      if (RD.gone || RD.parent !== null) problem = 'the merged directory has moved since';
+      else if (RD.children.length !== rec.moved.length || rec.moved.some(function (mv) { return blobs[mv.child].parent !== rec.result; })) problem = 'its contents have changed since';
+      if (!problem) {
+        rec.moved.forEach(function (mv) {
+          var C = blobs[mv.child];
+          C.parent = mv.from; C.name = mv.name;
+          blobs[mv.from].children.push(mv.child);
+        });
+        RD.children = [];
+        RD.gone = true;
+        var DA = blobs[rec.a], DB = blobs[rec.b], off = radiusOf(rec.a) + radiusOf(rec.b) + 0.55;
+        DA.gone = false; DB.gone = false;
+        DB.x = RD.x + off / 2; DB.y = RD.y; DB.z = RD.z;
+        DA.x = RD.x - off / 2; DA.y = RD.y; DA.z = RD.z + 0.15;
+        DA.vx = DA.vy = DA.vz = DB.vx = DB.vy = DB.vz = 0;
+        clampPos(DA); clampPos(DB);
+        text = 'unmerged "' + rec.nameA + '" and "' + rec.nameB + '": both directories restored with their own children (undo of #' + rec.seq + ')';
+        ids = [rec.a, rec.b, rec.result];
+        selected = null;
+      }
+    } else if (rec.op === 'merge') {
+      var R = blobs[rec.result], A = blobs[rec.a], B = blobs[rec.b];
+      var created = rec.rule !== 'file+dir';
+      var moved = created ? [rec.a, rec.b] : [A.type === 'file' ? rec.a : rec.b];
+      if (R.gone || R.parent !== null) problem = 'the merged orb has moved since';
+      moved.forEach(function (m) { if (blobs[m].parent !== rec.result) problem = 'its parts have changed since'; });
+      if (!problem) {
+        R.children = R.children.filter(function (c) { return moved.indexOf(c) === -1; });
+        A.name = rec.nameA; B.name = rec.nameB;
+        moved.forEach(function (m, i) {
+          var M = blobs[m], off = radiusOf(rec.result) + radiusOf(m) + 0.45;
+          M.parent = null;
+          M.x = R.x + (i === 0 ? -off : off); M.y = R.y + (created ? 0 : off * 0.15); M.z = R.z;
+          M.vx = M.vy = M.vz = 0;
+          clampPos(M);
+        });
+        R.rings = Math.max(0, R.rings - 1);
+        if (created) R.gone = true;
+        text = 'unmerged "' + rec.nameA + '" and "' + rec.nameB + '" (undo of #' + rec.seq + ')';
+        ids = [rec.a, rec.b, rec.result];
+        selected = null;
+      }
+    } else if (rec.op === 'split') {
+      var P = blobs[rec.parent], C = blobs[rec.child];
+      if (C.parent !== null || C.gone || !isLive(rec.parent)) problem = 'the split-out orb has changed since';
+      else {
+        C.name = uniqueName(rec.parent, C.name, rec.child);
+        P.children.splice(Math.min(rec.index, P.children.length), 0, rec.child);
+        C.parent = rec.parent;
+        text = 'put "' + C.name + '" back into "' + P.name + '" (undo of #' + rec.seq + ')';
+        ids = [rec.parent, rec.child];
+        selected = topAncestor(rec.parent);
+      }
+    } else if (rec.op === 'rename') {
+      var N = blobs[rec.id];
+      if (N.name !== rec.to) problem = 'it has been renamed again since';
+      else { N.name = rec.from; text = 'renamed "' + rec.to + '" back to "' + rec.from + '" (undo of #' + rec.seq + ')'; ids = [rec.id]; }
+    } else if (rec.op === 'tag') {
+      var T = blobs[rec.id], ti = T.tags.indexOf(rec.tag);
+      if (ti === -1) problem = 'the tag is already gone';
+      else { T.tags.splice(ti, 1); text = 'removed tag "' + rec.tag + '" from "' + T.name + '" (undo of #' + rec.seq + ')'; ids = [rec.id]; }
+    } else if (rec.op === 'create') {
+      rec.ids.forEach(function (c) { if (blobs[c].parent !== null || blobs[c].gone) problem = 'it has been merged or moved since'; });
+      if (!problem) {
+        rec.ids.forEach(function (c) { blobs[c].gone = true; });
+        text = 'removed ' + rec.what + ' from the stage (undo of #' + rec.seq + '; kept in history)';
+        ids = rec.ids.slice();
+      }
+    } else if (rec.op === 'refuse') {
+      delete refused[rec.key];
+      text = 'withdrew the refusal of "' + blobs[rec.a].name + '" + "' + blobs[rec.b].name + '" (undo of #' + rec.seq + '; may be suggested again)';
+      ids = [rec.a, rec.b];
+    } else problem = 'unknown undo op';
+    if (problem) {
+      undoStack.push(rec);
+      return { ok: false, msg: 'Cannot undo #' + rec.seq + ' (' + rec.op + '): ' + problem + '.' };
+    }
+    logEvent('undo', { undoes: rec.seq, action: rec.op }, text, ids);
+    if (selected && !isLive(selected)) selected = null;
+    structureChanged();
+    return { ok: true, msg: 'Undid #' + rec.seq + ': ' + text.replace(/ \(undo of.*$/, '') + '.' };
+  }
+
+  function findPending(a, b) {
+    var k = pairKey(a, b);
+    for (var i = 0; i < pending.length; i++) if (pending[i].key === k) return pending[i];
+    return null;
+  }
+  function suggest(a, b, source) {
+    if (findPending(a, b) || refused[pairKey(a, b)]) return null;
+    if (pending.length && source === 'physics') return null;
+    var p = { key: pairKey(a, b), a: a, b: b, source: source, shared: sharedTags(a, b), crossKind: !sameKind(a, b) };
+    pending.push(p);
+    renderPending();
+    var A = blobs[a], B = blobs[b];
+    setStatus('Proposed: "' + A.name + '" + "' + B.name + '". Accept commits the merge; Refuse keeps them apart.');
+    return p;
+  }
+  function beginAccept(key) {
+    if (anim) return null;
+    var p = pending.filter(function (x) { return x.key === key; })[0];
+    if (!p) return null;
+    var A = blobs[p.a], B = blobs[p.b];
+    anim = { kind: 'approach', t: 0, dur: 0.9, a: p.a, b: p.b, key: p.key, scale: 1,
+      a0: { x: A.x, y: A.y, z: A.z }, b0: { x: B.x, y: B.y, z: B.z },
+      mid: { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2, z: (A.z + B.z) / 2 } };
+    A.vx = A.vy = A.vz = 0; B.vx = B.vy = B.vz = 0;
+    setStatus('Merging "' + A.name + '" and "' + B.name + '"…');
+    renderPending();
+    return p.key;
+  }
+  function push(A, B, speed) {
+    var dx = A.x - B.x, dy = A.y - B.y, dz = A.z - B.z;
+    var d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (d < 1e-4) { dx = 1; dy = 0.15; dz = 0.2; d = Math.sqrt(dx * dx + dy * dy + dz * dz); }
+    A.vx += dx / d * speed; A.vy += dy / d * speed; A.vz += dz / d * speed;
+    B.vx -= dx / d * speed; B.vy -= dy / d * speed; B.vz -= dz / d * speed;
+  }
+  function keepApart(key) {
+    if (anim) return;
+    var p = pending.filter(function (x) { return x.key === key; })[0];
+    if (!p) return;
+    pending = pending.filter(function (x) { return x !== p; });
+    refused[p.key] = true;
+    var A = blobs[p.a], B = blobs[p.b];
+    var ev = logEvent('refuse', { a: p.a, b: p.b, source: p.source, shared: p.shared },
+      'kept apart "' + A.name + '" and "' + B.name + '" (suggested by ' + p.source + ')', [p.a, p.b]);
+    undoStack.push({ op: 'refuse', seq: ev.seq, key: p.key, a: p.a, b: p.b });
+    push(A, B, 3.4);
+    cooldown = 0.9;
+    renderPending(); renderHistory(); renderInspector();
+    setStatus('Refused: "' + A.name + '" and "' + B.name + '" stay apart (that pair will not be proposed again).');
+  }
+
+  function easeInOut(u) { return u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2; }
+  function easeOutBack(u) {
+    var c1 = 1.70158, c3 = c1 + 1;
+    return 1 + c3 * Math.pow(u - 1, 3) + c1 * Math.pow(u - 1, 2);
+  }
+  function lerp(a, b, u) { return a + (b - a) * u; }
+  function stepAnim(dt) {
+    if (!anim) return;
+    anim.t += dt;
+    if (anim.kind === 'approach') {
+      var u = Math.min(1, anim.t / anim.dur), e = easeInOut(u);
+      var A = blobs[anim.a], B = blobs[anim.b];
+      if (A && B && !A.gone && !B.gone && !A.parent && !B.parent) {
+        A.x = lerp(anim.a0.x, anim.mid.x, e); A.y = lerp(anim.a0.y, anim.mid.y, e); A.z = lerp(anim.a0.z, anim.mid.z, e);
+        B.x = lerp(anim.b0.x, anim.mid.x, e); B.y = lerp(anim.b0.y, anim.mid.y, e); B.z = lerp(anim.b0.z, anim.mid.z, e);
+        A.vx = A.vy = A.vz = B.vx = B.vy = B.vz = 0;
+      }
+      anim.scale = lerp(1, 0.38, e);
+      if (flashMesh) flashMesh.material.opacity = u > 0.62 ? (u - 0.62) / 0.38 * 0.85 : 0;
+      if (u >= 1) {
+        var mid = anim.mid, pa = anim.a, pb = anim.b;
+        var id;
+        try { id = merge(pa, pb, 'human-accept'); }
+        catch (err) { anim = null; if (flashMesh) flashMesh.material.opacity = 0; setStatus('Merge failed: ' + err.message); return; }
+        blobs[id].x = mid.x; blobs[id].y = mid.y; blobs[id].z = mid.z;
+        blobs[id].vx = blobs[id].vy = blobs[id].vz = 0;
+        anim = { kind: 'pop', id: id, t: 0, dur: 0.55, scale: 0.32 };
+        shock = { t: 0, dur: 0.7, x: mid.x, y: mid.y, z: mid.z };
+        setStatus('Merged into "' + blobs[id].name + '" (' + (events[events.length - 1].rule) + ', committed by you).');
+      }
+    } else if (anim.kind === 'pop') {
+      var u2 = Math.min(1, anim.t / anim.dur);
+      anim.scale = 0.32 + (1 - 0.32) * easeOutBack(Math.min(1, u2));
+      if (flashMesh) flashMesh.material.opacity = Math.max(0, 0.7 * (1 - u2));
+      if (u2 >= 1) {
+        anim = null;
+        cooldown = 0.75;
+        if (flashMesh) flashMesh.material.opacity = 0;
+        renderPending();
+      }
+    }
+  }
+
+  function addAcc(acc, id, nx, ny, nz, f) {
+    acc[id].x += nx * f; acc[id].y += ny * f; acc[id].z += nz * f;
+  }
+  function capSpeed(b, max) {
+    var s = Math.sqrt(b.vx * b.vx + b.vy * b.vy + b.vz * b.vz);
+    if (s > max) { var k = max / s; b.vx *= k; b.vy *= k; b.vz *= k; }
+  }
+  function physics(dt) {
+    var ids = topLevel().filter(inFocus), i, j, acc = {}, best = null;
+    ids.forEach(function (id) { acc[id] = { x: 0, y: 0, z: 0 }; });
+    for (i = 0; i < ids.length; i++) {
+      for (j = i + 1; j < ids.length; j++) {
+        var idA = ids[i], idB = ids[j];
+        var A = blobs[idA], B = blobs[idB];
+        var dx = B.x - A.x, dy = B.y - A.y, dz = B.z - A.z;
+        var dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-4;
+        var nx = dx / dist, ny = dy / dist, nz = dz / dist;
+        var gap = dist - radiusOf(idA) - radiusOf(idB);
+        var key = pairKey(idA, idB);
+        var pulling = pullOf(idA, idB);
+        var pend = findPending(idA, idB);
+        if (pend) {
+          var rest = radiusOf(idA) + radiusOf(idB) + 0.95;
+          var f = (dist - rest) * 5;
+          if (f > 14) f = 14; if (f < -14) f = -14;
+          addAcc(acc, idA, nx, ny, nz, f);
+          addAcc(acc, idB, nx, ny, nz, -f);
+        } else if (refused[key]) {
+          var comfort = radiusOf(idA) + radiusOf(idB) + 2.5;
+          if (dist < comfort) {
+            var f2 = (comfort - dist) * 2.4;
+            addAcc(acc, idA, nx, ny, nz, -f2);
+            addAcc(acc, idB, nx, ny, nz, f2);
+          }
+        } else if (pulling > 0 && dist < REACH) {
+          var fall = 1 - dist / REACH;
+          var f3 = pulling * PULL_K * fall;
+          addAcc(acc, idA, nx, ny, nz, f3);
+          addAcc(acc, idB, nx, ny, nz, -f3);
+          if (!drag && cooldown <= 0 && pending.length === 0 && canPropose(idA, idB) && gap < PROPOSE_GAP) {
+            if (!best || gap < best.gap) best = { a: idA, b: idB, gap: gap };
+          }
+        }
+        if (!pend && gap < 0.12) {
+          var f4 = (0.12 - gap) * (pulling > 0 ? 10 : 16);
+          addAcc(acc, idA, nx, ny, nz, -f4);
+          addAcc(acc, idB, nx, ny, nz, f4);
+        }
+      }
+    }
+    ids.forEach(function (id) {
+      var b = blobs[id];
+      if (drag && drag.id === id) { b.vx = b.vy = b.vz = 0; return; }
+      if (wanderEnabled) {
+        if (b.wanderT === undefined || b.wanderT <= 0) {
+          b.wx = (Math.random() - 0.5) * 0.5;
+          b.wy = (Math.random() - 0.5) * 0.28;
+          b.wz = (Math.random() - 0.5) * 0.5;
+          b.wanderT = 2.4 + Math.random() * 2.2;
+        }
+        b.wanderT -= dt;
+        acc[id].x += b.wx; acc[id].y += b.wy; acc[id].z += b.wz;
+      }
+      var d = Math.sqrt(b.x * b.x + b.y * b.y + b.z * b.z) || 1e-4;
+      if (d > WORLD_LIM) {
+        var k = (d - WORLD_LIM) * 3.2;
+        acc[id].x -= b.x / d * k; acc[id].y -= b.y / d * k; acc[id].z -= b.z / d * k;
+      }
+      b.vx += acc[id].x * dt; b.vy += acc[id].y * dt; b.vz += acc[id].z * dt;
+      var damp = Math.exp(-0.42 * dt);
+      b.vx *= damp; b.vy *= damp; b.vz *= damp;
+      capSpeed(b, 3.2);
+      b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
+    });
+    if (cooldown > 0) cooldown -= dt;
+    if (best) suggest(best.a, best.b, 'physics');
+  }
+
+  function frameStep(dt) {
+    var left = Math.max(0, dt), guard = 0;
+    while (left > 0 && guard < 300) {
+      var h = Math.min(0.05, left);
+      if (anim) stepAnim(h);
+      else physics(h);
+      if (shock) {
+        shock.t += h;
+        if (shock.t >= shock.dur) shock = null;
+      }
+      left -= h;
+      guard++;
+    }
+    syncView();
+  }
+
+  // ---------- .orb container (same zip as blobfs-2d.html: MAGIC, records.jsonl, objects/<sha256>) ----------
+  var ORB_MAGIC = 'BLOBFS-ORB\n1\n';
+  var forceJsSha = false;
+  var CRC_TABLE = null;
+  function utf8(s) { return new TextEncoder().encode(s); }
+  function crc32(u8) {
+    if (!CRC_TABLE) {
+      CRC_TABLE = new Uint32Array(256);
+      for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; CRC_TABLE[n] = c >>> 0; }
+    }
+    var crc = 0xFFFFFFFF;
+    for (var i = 0; i < u8.length; i++) crc = CRC_TABLE[(crc ^ u8[i]) & 0xFF] ^ (crc >>> 8);
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  }
+  var ZIP32_MAX = 4294967295, FOUR_GIB = 4294967296;
+  function zip32Check(files) {
+    var total = 22;
+    if (files.length > 65535) throw new Error('too many entries for a zip32 .orb (' + files.length + ', limit 65535)');
+    files.forEach(function (f) {
+      var n = utf8(f.name).length, len = f.size !== undefined ? f.size : f.data.length;
+      if (len >= FOUR_GIB) throw new Error('"' + f.name + '" is ' + fmtBytes(len) + '; a single file must be under 4 GiB (zip32 limit)');
+      total += 30 + n + len + 46 + n;
+    });
+    if (total > ZIP32_MAX) throw new Error('the .orb would be ' + fmtBytes(total) + ', over the 4 GiB zip32 limit; nothing was saved');
+    return total;
+  }
+  function zipStore(files) {
+    zip32Check(files);
+    var parts = [], central = [], offset = 0, d = new Date();
+    var dosTime = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+    var dosDate = ((Math.max(1980, d.getFullYear()) - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+    files.forEach(function (f) {
+      var nm = utf8(f.name), crc = crc32(f.data), len = f.data.length;
+      var lh = new DataView(new ArrayBuffer(30));
+      lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+      lh.setUint16(10, dosTime, true); lh.setUint16(12, dosDate, true); lh.setUint32(14, crc, true);
+      lh.setUint32(18, len, true); lh.setUint32(22, len, true); lh.setUint16(26, nm.length, true); lh.setUint16(28, 0, true);
+      parts.push(new Uint8Array(lh.buffer), nm, f.data);
+      var ch = new DataView(new ArrayBuffer(46));
+      ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, 0, true);
+      ch.setUint16(12, dosTime, true); ch.setUint16(14, dosDate, true); ch.setUint32(16, crc, true);
+      ch.setUint32(20, len, true); ch.setUint32(24, len, true); ch.setUint16(28, nm.length, true); ch.setUint32(42, offset, true);
+      central.push(new Uint8Array(ch.buffer), nm);
+      offset += 30 + nm.length + len;
+    });
+    var cdSize = central.reduce(function (s, x) { return s + x.length; }, 0);
+    var end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+    end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
+    return new Blob(parts.concat(central, [new Uint8Array(end.buffer)]), { type: 'application/zip' });
+  }
+  function unzipIndex(buf) {
+    var dv = new DataView(buf), n = buf.byteLength, eocd = -1, out = [], dec = new TextDecoder();
+    for (var i = n - 22; i >= Math.max(0, n - 65557); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    if (eocd < 0) throw new Error('not a zip');
+    var count = dv.getUint16(eocd + 10, true), p = dv.getUint32(eocd + 16, true);
+    for (var k = 0; k < count; k++) {
+      if (p + 46 > n || dv.getUint32(p, true) !== 0x02014b50) throw new Error('damaged zip directory');
+      var nl = dv.getUint16(p + 28, true), xl = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true);
+      out.push({ name: dec.decode(new Uint8Array(buf, p + 46, nl)), method: dv.getUint16(p + 10, true), crc: dv.getUint32(p + 16, true),
+        csize: dv.getUint32(p + 20, true), usize: dv.getUint32(p + 24, true), offset: dv.getUint32(p + 42, true) });
+      p += 46 + nl + xl + cl;
+    }
+    return out;
+  }
+  function unzipEntry(buf, e) {
+    var dv = new DataView(buf);
+    if (dv.getUint32(e.offset, true) !== 0x04034b50) return Promise.reject(new Error('damaged zip entry "' + e.name + '"'));
+    var start = e.offset + 30 + dv.getUint16(e.offset + 26, true) + dv.getUint16(e.offset + 28, true);
+    var raw = new Uint8Array(buf, start, e.csize), pr;
+    if (e.method === 0) pr = Promise.resolve(raw.slice());
+    else if (e.method === 8 && window.DecompressionStream) {
+      pr = new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer().then(function (ab) { return new Uint8Array(ab); });
+    } else return Promise.reject(new Error('"' + e.name + '" uses a compression method this browser cannot read'));
+    return pr.then(function (u8) {
+      if (crc32(u8) !== e.crc) throw new Error('CRC mismatch in "' + e.name + '" (the file is damaged)');
+      return u8;
+    });
+  }
+  function blobBytes(b) { return b.arrayBuffer().then(function (ab) { return new Uint8Array(ab); }); }
+  function hex(u8) { var s = ''; for (var i = 0; i < u8.length; i++) s += (u8[i] < 16 ? '0' : '') + u8[i].toString(16); return s; }
+  function sha256(u8) {
+    if (!forceJsSha && window.crypto && window.crypto.subtle && window.crypto.subtle.digest) {
+      return window.crypto.subtle.digest('SHA-256', u8).then(function (h) { return hex(new Uint8Array(h)); });
+    }
+    return Promise.resolve(hex(sha256js(u8)));
+  }
+  var SHA_K = null, SHA_H0 = null;
+  function sha256js(msg) {
+    if (!SHA_K) {
+      var primes = [], c = 2;
+      while (primes.length < 64) { var isP = true; for (var q = 2; q * q <= c; q++) if (c % q === 0) { isP = false; break; } if (isP) primes.push(c); c++; }
+      var frac = function (x) { return ((x - Math.floor(x)) * 4294967296) >>> 0; };
+      SHA_K = primes.map(function (p) { return frac(Math.cbrt(p)); });
+      SHA_H0 = primes.slice(0, 8).map(function (p) { return frac(Math.sqrt(p)); });
+    }
+    var l = msg.length, nb = (l + 9 + 63) >> 6, buf = new Uint8Array(nb * 64), dv = new DataView(buf.buffer);
+    buf.set(msg); buf[l] = 0x80;
+    dv.setUint32(nb * 64 - 8, Math.floor(l / 536870912), false); dv.setUint32(nb * 64 - 4, (l * 8) >>> 0, false);
+    var H = SHA_H0.slice(), w = new Uint32Array(64);
+    for (var blk = 0; blk < nb; blk++) {
+      for (var t = 0; t < 16; t++) w[t] = dv.getUint32(blk * 64 + t * 4, false);
+      for (t = 16; t < 64; t++) {
+        var x = w[t - 15], y = w[t - 2];
+        var s0 = ((x >>> 7) | (x << 25)) ^ ((x >>> 18) | (x << 14)) ^ (x >>> 3);
+        var s1 = ((y >>> 17) | (y << 15)) ^ ((y >>> 19) | (y << 13)) ^ (y >>> 10);
+        w[t] = (w[t - 16] + s0 + w[t - 7] + s1) >>> 0;
+      }
+      var a = H[0], b = H[1], cc = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+      for (t = 0; t < 64; t++) {
+        var S1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
+        var t1 = (h + S1 + ((e & f) ^ (~e & g)) + SHA_K[t] + w[t]) >>> 0;
+        var S0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+        var t2 = (S0 + ((a & b) ^ (a & cc) ^ (b & cc))) >>> 0;
+        h = g; g = f; f = e; e = (d + t1) >>> 0; d = cc; cc = b; b = a; a = (t1 + t2) >>> 0;
+      }
+      H[0] = (H[0] + a) >>> 0; H[1] = (H[1] + b) >>> 0; H[2] = (H[2] + cc) >>> 0; H[3] = (H[3] + d) >>> 0;
+      H[4] = (H[4] + e) >>> 0; H[5] = (H[5] + f) >>> 0; H[6] = (H[6] + g) >>> 0; H[7] = (H[7] + h) >>> 0;
+    }
+    var out = new Uint8Array(32), ov = new DataView(out.buffer);
+    for (var i = 0; i < 8; i++) ov.setUint32(i * 4, H[i], false);
+    return out;
+  }
+  function placeholderBytes(b) {
+    return utf8('BlobFS placeholder payload\nsource: ' + (b.src || b.id) + '\nkind: ' + b.kind + '\ndeclared-size: ' + b.size + '\n');
+  }
+  function payloadOf(b) {
+    if (b.file) return blobBytes(b.file).then(function (u8) { return { bytes: u8, placeholder: !!b.placeholder }; });
+    if (b.zipRef && b.zipRef.blob) {
+      return b.zipRef.blob.arrayBuffer().then(function (buf) {
+        var e = unzipIndex(buf).filter(function (x) { return x.name === b.zipRef.entry; })[0];
+        if (!e) throw new Error('entry missing');
+        return unzipEntry(buf, e);
+      }).then(function (u8) { return { bytes: u8, placeholder: false }; }, function (err) { throw new Error('could not read "' + b.zipRef.entry + '" from its zip (' + err.message + '); nothing was saved'); });
+    }
+    return Promise.resolve({ bytes: placeholderBytes(b), placeholder: true });
+  }
+  function buildOrb() {
+    var ids = order.slice(), objects = {}, byId = {};
+    return Promise.all(ids.map(function (id) {
+      var b = blobs[id];
+      if (b.type !== 'file') return null;
+      return payloadOf(b).then(function (p) {
+        return sha256(p.bytes).then(function (h) { objects[h] = p.bytes; byId[id] = { hash: h, placeholder: p.placeholder }; });
+      });
+    })).then(function () {
+      var recs = [{ t: 'header', format: 'blobfs-orb', version: 1, constantMass: BODY, savedAt: new Date().toISOString(), writer: 'blobfs-3d.html' }];
+      ids.forEach(function (id) {
+        var b = blobs[id];
+        var r = { t: 'blob', id: id, type: b.type, kind: kindOf(id), name: b.name, size: contentSize(id), mass: massOf(id),
+          tags: b.tags.slice(), rings: b.rings, history: b.history.slice(), hash: null };
+        if (b.type === 'file') { r.hash = byId[id].hash; r.payload = byId[id].placeholder ? 'placeholder' : 'bytes'; if (b.src) r.src = b.src; }
+        if (b.entries) r.entries = b.entries.map(function (e) { return { name: e.name, kind: e.kind, size: e.size }; });
+        if (b.autoName) r.autoName = true;
+        if (b.gone) r.gone = true;
+        recs.push(r);
+      });
+      ids.forEach(function (id) { blobs[id].children.forEach(function (c, i) { recs.push({ t: 'link', parent: id, child: c, index: i }); }); });
+      events.forEach(function (ev) { if (ev.type === 'merge') recs.push({ t: 'merge', time: ev.time, seq: ev.seq, a: ev.a, b: ev.b, result: ev.result, rule: ev.rule, detail: ev.text }); });
+      topLevel().forEach(function (id) {
+        var b = blobs[id];
+        recs.push({ t: 'position', id: id, x: Math.round(b.x * PIX_SCALE + PIX_CX), y: Math.round(b.z * PIX_SCALE + PIX_CY), z: Math.round(b.y * 1000) / 1000 });
+      });
+      Object.keys(refused).forEach(function (k) { recs.push({ t: 'refused', key: k }); });
+      undoStack.forEach(function (u, i) { recs.push({ t: 'undo', pos: i, rec: JSON.parse(JSON.stringify(u)) }); });
+      pending.forEach(function (p) { recs.push({ t: 'pending', key: p.key, a: p.a, b: p.b, source: p.source, shared: p.shared.slice(), crossKind: p.crossKind }); });
+      events.forEach(function (ev) { var r = { t: 'event' }; for (var k in ev) if (Object.prototype.hasOwnProperty.call(ev, k)) r[k] = ev[k]; recs.push(r); });
+      var files = [{ name: 'MAGIC', data: utf8(ORB_MAGIC) },
+        { name: 'records.jsonl', data: utf8(recs.map(function (r) { return JSON.stringify(r); }).join('\n') + '\n') }];
+      Object.keys(objects).sort().forEach(function (h) { files.push({ name: 'objects/' + h, data: objects[h] }); });
+      return { zip: zipStore(files), records: recs, objects: Object.keys(objects).length, files: ids.filter(function (id) { return blobs[id].type === 'file'; }).length };
+    });
+  }
+  function loadOrbZip(buf, fileName) {
+    var idx = unzipIndex(buf), map = {};
+    idx.forEach(function (e) { map[e.name] = e; });
+    if (!map.MAGIC || !map['records.jsonl']) return Promise.reject(new Error('not a BlobFS .orb (no MAGIC or records.jsonl inside)'));
+    var dec = new TextDecoder(), recs, objects = {};
+    return Promise.all([unzipEntry(buf, map.MAGIC), unzipEntry(buf, map['records.jsonl'])]).then(function (r) {
+      if (dec.decode(r[0]).indexOf('BLOBFS-ORB') !== 0) throw new Error('bad MAGIC header');
+      recs = dec.decode(r[1]).split('\n').filter(function (l) { return l.trim(); }).map(function (l) { return JSON.parse(l); });
+      return Promise.all(idx.filter(function (e) { return e.name.indexOf('objects/') === 0 && e.name.length > 8; }).map(function (e) {
+        return unzipEntry(buf, e).then(function (u8) {
+          return sha256(u8).then(function (h) {
+            if (h !== e.name.slice(8)) throw new Error('hash mismatch for ' + e.name + ' (the file is damaged)');
+            objects[h] = u8;
+          });
+        });
+      }));
+    }).then(function () {
+      var bl = {}, evs = [], ref = [], links = [], und = [], pend = [];
+      recs.forEach(function (x) {
+        if (x.t === 'blob') bl[x.id] = { type: x.type, kind: x.kind, name: x.name, size: x.size, tags: x.tags, rings: x.rings, history: x.history,
+          gone: !!x.gone, entries: x.entries, autoName: !!x.autoName, payload: x.payload, src: x.src, hash: x.hash,
+          children: [], parent: null, position: null };
+        else if (x.t === 'link') links.push(x);
+        else if (x.t === 'position' && bl[x.id]) bl[x.id].position = { x: x.x, y: x.y, z: x.z };
+        else if (x.t === 'refused') ref.push(x.key);
+        else if (x.t === 'undo') und.push(x);
+        else if (x.t === 'pending') pend.push(x);
+        else if (x.t === 'event') { var ev = {}; for (var k in x) if (k !== 't') ev[k] = x[k]; evs.push(ev); }
+      });
+      links.sort(function (p, q) { return p.index - q.index; }).forEach(function (l) {
+        if (!bl[l.parent] || !bl[l.child]) throw new Error('dangling link ' + l.parent + ' -> ' + l.child + ' (the file is damaged)');
+        bl[l.parent].children.push(l.child); bl[l.child].parent = l.parent;
+      });
+      Object.keys(bl).forEach(function (id) {
+        var s = bl[id];
+        if (s.type === 'file') {
+          if (!s.hash || !objects[s.hash]) throw new Error('payload missing for "' + s.name + '"');
+          s.payloadBlob = new Blob([objects[s.hash]]);
+        }
+      });
+      und.sort(function (p, q) { return p.pos - q.pos; });
+      loadOrb({ format: 'blobfs-orb', state: { blobs: bl, refused: ref, undo: und.map(function (u) { return u.rec; }), pending: pend }, events: evs }, fileName);
+      return { blobs: Object.keys(bl).length, objects: Object.keys(objects).length };
+    });
+  }
+  function worldFromSaved(p, bbox, index) {
+    if (!p) return null;
+    if (p.z !== undefined && p.z !== null) {
+      return { x: (Number(p.x) - PIX_CX) / PIX_SCALE, y: Number(p.z), z: (Number(p.y) - PIX_CY) / PIX_SCALE };
+    }
+    if (!bbox) return null;
+    return { x: (Number(p.x) - bbox.cx) * bbox.scale, y: ((index % 5) - 2) * 0.28, z: (Number(p.y) - bbox.cy) * bbox.scale };
+  }
+  function loadOrb(data, fileName) {
+    if (!data || data.format !== 'blobfs-orb' || !data.state || !data.state.blobs) throw new Error('not a BlobFS .orb file');
+    Object.keys(blobs).forEach(function (k) { delete blobs[k]; });
+    order.length = 0; events.length = 0; undoStack.length = 0; pending = []; refused = {}; selected = null;
+    anim = null; shock = null; drag = null; cooldown = 0; focus = null;
+    var src = data.state.blobs, maxId = 0, noPos = [], savedPos = [];
+    Object.keys(src).forEach(function (id) {
+      var s = src[id];
+      if (s.position && (s.position.z === undefined || s.position.z === null)) savedPos.push(s.position);
+    });
+    var bbox = null;
+    if (savedPos.length) {
+      var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      savedPos.forEach(function (p) {
+        minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+        minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+      });
+      var span = Math.max(maxX - minX, maxY - minY, 1);
+      bbox = { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, scale: 10 / span };
+    }
+    var posIndex = 0;
+    Object.keys(src).forEach(function (id) {
+      var s = src[id];
+      var b = { id: id, type: s.type === 'dir' ? 'dir' : 'file', name: String(s.name), kind: null, size: 0, tags: (s.tags || []).slice(),
+        children: (s.children || []).slice(), parent: s.parent || null, history: (s.history || []).slice(), rings: s.rings || 0,
+        autoName: !!s.autoName, entries: null, gone: !!s.gone, file: s.payloadBlob || null, placeholder: s.payload === 'placeholder',
+        src: s.src || null, zipRef: null, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0 };
+      if (b.type === 'file') { b.kind = s.kind || kindFromName(b.name); b.size = Math.max(0, Number(s.size) || 0); }
+      if (b.kind === 'zip') b.entries = (s.entries || []).map(function (e) { return { name: String(e.name), kind: e.kind || kindFromName(e.name), size: Number(e.size) || 0 }; });
+      if (s.position && !b.parent && !b.gone) {
+        var w = worldFromSaved(s.position, bbox, posIndex++);
+        if (w) { b.x = w.x; b.y = w.y; b.z = w.z; } else noPos.push(id);
+      } else if (!b.parent && !b.gone) noPos.push(id);
+      blobs[id] = b; order.push(id);
+      var num = parseInt(String(id).replace(/\D/g, ''), 10); if (num > maxId) maxId = num;
+    });
+    order.forEach(function (id) { blobs[id].children = blobs[id].children.filter(function (c) { return !!blobs[c]; }); });
+    nextId = maxId + 1;
+    (data.events || []).forEach(function (ev) { events.push(ev); });
+    nextSeq = events.reduce(function (m, ev) { return Math.max(m, ev.seq || 0); }, 0) + 1;
+    (data.state.refused || []).forEach(function (k) { refused[k] = true; });
+    (data.state.undo || []).forEach(function (u) { if (u && u.op) undoStack.push(u); });
+    (data.state.pending || []).forEach(function (p) {
+      if (!blobs[p.a] || !blobs[p.b] || blobs[p.a].parent || blobs[p.b].parent || blobs[p.a].gone || blobs[p.b].gone) return;
+      var key = p.key || pairKey(p.a, p.b);
+      if (refused[key] || pending.some(function (q) { return q.key === key; })) return;
+      pending.push({ key: key, a: p.a, b: p.b, source: p.source || 'physics', shared: (p.shared || sharedTags(p.a, p.b)).slice(),
+        crossKind: p.crossKind !== undefined ? !!p.crossKind : !sameKind(p.a, p.b) });
+    });
+    if (noPos.length) initialLayout(noPos);
+    topLevel().forEach(function (id) { clampPos(blobs[id]); });
+    logEvent('load', { file: fileName, blobs: order.length }, 'opened "' + fileName + '" (' + order.length + ' blobs, ' + events.length + ' earlier events kept)', []);
+    if (msgEl) { msgEl.style.display = 'none'; msgEl.textContent = ''; }
+    structureChanged();
+  }
+
+  function readZipEntries(file) {
+    return file.arrayBuffer().then(function (buf) {
+      return unzipIndex(buf).filter(function (e) { return e.name.slice(-1) !== '/'; })
+        .map(function (e) { return { name: e.name, kind: kindFromName(e.name), size: e.usize }; });
+    });
+  }
+  function addFileOrb(file, parentId) {
+    var kind = kindFromName(file.name);
+    var id = createFile(file.name, kind, file.size, [], parentId);
+    blobs[id].file = file;
+    if (kind === 'zip' && file.arrayBuffer) {
+      readZipEntries(file).then(function (ents) {
+        blobs[id].entries = ents;
+        logEvent('index', { id: id, entries: ents.length }, 'listed ' + ents.length + ' entries in "' + blobs[id].name + '"', [id]);
+        structureChanged();
+      }).catch(function () { setStatus('Could not read the contents of "' + file.name + '".'); });
+    }
+    return id;
+  }
+  function addFiles(files) {
+    var ok = [], big = 0;
+    Array.prototype.forEach.call(files, function (f) { if (f.size >= FOUR_GIB) big++; else ok.push(f); });
+    if (big) setStatus('Refused ' + big + ' file(s) of 4 GiB or more (zip32 limit).');
+    if (!ok.length) return [];
+    var roots = ok.map(function (f) { return addFileOrb(f, null); });
+    var ev = logEvent('import', { what: 'files', ids: roots, files: ok.length }, 'imported ' + ok.length + ' file' + (ok.length === 1 ? '' : 's') + ' (files)', roots);
+    undoStack.push({ op: 'create', seq: ev.seq, ids: roots, what: 'the files import' });
+    roots.forEach(function (id) { placeNear(blobs[id]); });
+    selected = roots[0] || null;
+    structureChanged();
+    setStatus('Imported ' + ok.length + ' file' + (ok.length === 1 ? '' : 's') + '.');
+    return roots;
+  }
+  function download(name, data, type) {
+    var blob = data instanceof Blob ? data : new Blob([data], { type: type });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = name; a.style.display = 'none';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    window.setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+  }
+  var saving = false;
+  function onSave() {
+    if (saving) { setStatus('Already saving…'); return; }
+    saving = true;
+    setStatus('Saving demo.orb.zip…');
+    buildOrb().then(function (res) {
+      download('demo.orb.zip', res.zip, 'application/zip');
+      var m = 'Saved demo.orb.zip: ' + res.records.length + ' records, ' + res.files + ' file blobs stored as ' + res.objects + ' payload' + (res.objects === 1 ? '' : 's') + ' (SHA-256, deduplicated).';
+      setStatus(m);
+    }).catch(function (err) { setStatus('Save failed: ' + err.message); })
+      .then(function () { saving = false; });
+  }
+  function onOrbChosen(e) {
+    var f = (e.target.files || [])[0];
+    e.target.value = '';
+    if (!f) return;
+    f.arrayBuffer().then(function (buf) {
+      var u8 = new Uint8Array(buf);
+      if (u8[0] === 0x50 && u8[1] === 0x4b) {
+        return loadOrbZip(buf, f.name).then(function (r) {
+          return 'Opened ' + f.name + ': ' + topLevel().length + ' orbs, ' + r.blobs + ' blobs, ' + r.objects + ' payloads (all SHA-256 hashes verified).';
+        });
+      }
+      loadOrb(JSON.parse(new TextDecoder().decode(u8)), f.name);
+      return 'Opened ' + f.name + ' (legacy JSON save): ' + topLevel().length + ' orbs.';
+    }).then(function (m) { setStatus(m); }, function (err) { setStatus('Could not open ' + f.name + ': ' + err.message); });
+  }
+
+  // ---------- three.js view ----------
+  function kindColor(kind) {
+    var key = kind === 'empty' || kind === 'mixed' ? 'dir' : kind;
+    return new THREE.Color(KIND_COLORS[key] || KIND_COLORS.other);
+  }
+  function disposeObj(o) {
+    if (!o) return;
+    if (o.geometry) o.geometry.dispose();
+    var m = o.material;
+    if (!m) return;
+    if (Array.isArray(m)) m.forEach(function (x) { if (x.map) x.map.dispose(); x.dispose(); });
+    else { if (m.map) m.map.dispose(); m.dispose(); }
+  }
+  function makeLabel(name, sub) {
+    var c = document.createElement('canvas');
+    c.width = 512; c.height = 128;
+    var g = c.getContext('2d');
+    g.clearRect(0, 0, 512, 128);
+    g.font = '600 46px sans-serif';
+    g.fillStyle = '#e6edf3';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    var title = name.length > 22 ? name.slice(0, 21) + '…' : name;
+    g.fillText(title, 256, 46);
+    g.font = '400 26px sans-serif';
+    g.fillStyle = '#8b949e';
+    g.fillText(sub, 256, 96);
+    var tex = new THREE.CanvasTexture(c);
+    tex.needsUpdate = true;
+    var mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false });
+    var s = new THREE.Sprite(mat);
+    s.scale.set(3.05, 0.76, 1);
+    s.renderOrder = 10;
+    s.raycast = function () {};
+    return s;
+  }
+  function labelSub(id) {
+    var b = blobs[id];
+    var kind = isZorb(id) ? ('zorb · ' + (b.entries ? b.entries.length : 0) + ' files') : kindOf(id);
+    return (b.type === 'dir' ? 'dir · ' : '') + kind + ' · ' + fmtBytes(massOf(id));
+  }
+  function addChildren(group, id, r, depth) {
+    var kids = blobs[id].children, n = kids.length;
+    if (!n || depth > 2) return;
+    kids.forEach(function (cid, i) {
+      var a = -Math.PI / 2 + i * 2 * Math.PI / Math.max(n, 1);
+      var sr = n === 1 ? r * 0.4 : Math.min(r * 0.34, (r * Math.sin(Math.PI / n)) * 0.85);
+      sr = Math.max(0.12, sr);
+      var dist = Math.max(sr, r - sr * 0.22);
+      var col = kindColor(kindOf(cid));
+      var mesh = new THREE.Mesh(new THREE.SphereGeometry(sr, 20, 16), new THREE.MeshStandardMaterial({
+        color: col, emissive: col, emissiveIntensity: 0.48, roughness: 0.38, metalness: 0.05
+      }));
+      mesh.position.set(Math.cos(a) * dist, Math.sin(a) * dist * 0.42 + r * 0.06, Math.sin(a) * dist);
+      mesh.userData.id = cid;
+      mesh.renderOrder = 2;
+      group.add(mesh);
+    });
+  }
+  function makeGroup(id) {
+    var b = blobs[id], r = radiusOf(id), kind = kindOf(id), col = kindColor(kind);
+    var g = new THREE.Group();
+    g.userData.id = id;
+    var mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 36, 28), new THREE.MeshStandardMaterial({
+      color: col, emissive: col, emissiveIntensity: kind === 'zip' ? 0.55 : 0.38, roughness: 0.4, metalness: 0.06
+    }));
+    mesh.userData.id = id;
+    g.add(mesh);
+    var glow = new THREE.Mesh(new THREE.SphereGeometry(r * 1.12, 24, 18), new THREE.MeshBasicMaterial({
+      color: col, transparent: true, opacity: kind === 'zip' ? 0.22 : 0.14, side: THREE.BackSide, depthWrite: false
+    }));
+    glow.raycast = function () {};
+    g.add(glow);
+    var shell = new THREE.Mesh(new THREE.SphereGeometry(r + 0.18, 28, 20), new THREE.MeshBasicMaterial({
+      color: 0xd29922, transparent: true, opacity: 0.28, side: THREE.BackSide, depthWrite: false
+    }));
+    shell.visible = false;
+    shell.raycast = function () {};
+    g.add(shell);
+    g.userData.shell = shell;
+    var sel = new THREE.Mesh(new THREE.TorusGeometry(r + 0.12, 0.018, 8, 48), new THREE.MeshBasicMaterial({ color: 0x58a6ff }));
+    sel.rotation.x = Math.PI / 2;
+    sel.visible = false;
+    sel.raycast = function () {};
+    g.add(sel);
+    g.userData.sel = sel;
+    var rings = Math.min(b.rings || 0, 5);
+    for (var i = 0; i < rings; i++) {
+      var tor = new THREE.Mesh(new THREE.TorusGeometry(r + 0.22 + i * 0.09, 0.012, 6, 48), new THREE.MeshBasicMaterial({
+        color: 0x58a6ff, transparent: true, opacity: Math.max(0.35, 0.9 - i * 0.12)
+      }));
+      tor.rotation.x = Math.PI / 2.5;
+      tor.rotation.y = i * 0.35;
+      tor.raycast = function () {};
+      g.add(tor);
+    }
+    if (isZorb(id)) {
+      var zip = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, r * 1.55, 8), new THREE.MeshBasicMaterial({ color: 0x1a2e05 }));
+      zip.raycast = function () {};
+      g.add(zip);
+    } else addChildren(g, id, r, 1);
+    var lab = makeLabel(b.name, labelSub(id));
+    lab.position.y = r + 0.48;
+    g.add(lab);
+    return g;
+  }
+  function rebuildGroups() {
+    Object.keys(groups).forEach(function (id) {
+      var g = groups[id];
+      scene.remove(g);
+      g.traverse(function (o) { disposeObj(o); });
+    });
+    groups = {};
+    topLevel().forEach(function (id) {
+      var g = makeGroup(id);
+      var b = blobs[id];
+      g.position.set(b.x, b.y, b.z);
+      scene.add(g);
+      groups[id] = g;
+    });
+    beamSig = '\0';
+  }
+  function containsId(id, needle) {
+    if (!needle || !blobs[id]) return false;
+    if (id === needle) return true;
+    var ch = blobs[id].children;
+    for (var i = 0; i < ch.length; i++) if (containsId(ch[i], needle)) return true;
+    return false;
+  }
+  function updateBeams() {
+    var sig = pending.map(function (p) { return p.key; }).join(',');
+    if (sig !== beamSig) {
+      beams.forEach(function (bm) { scene.remove(bm.line); bm.line.geometry.dispose(); bm.line.material.dispose(); });
+      beams = [];
+      pending.forEach(function (p) {
+        var geom = new THREE.BufferGeometry();
+        geom.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(6), 3));
+        var line = new THREE.Line(geom, new THREE.LineBasicMaterial({ color: 0xd29922, transparent: true, opacity: 0.95 }));
+        line.raycast = function () {};
+        scene.add(line);
+        beams.push({ a: p.a, b: p.b, line: line });
+      });
+      beamSig = sig;
+    }
+    var now = performance.now();
+    beams.forEach(function (bm) {
+      var A = blobs[bm.a], B = blobs[bm.b];
+      if (!A || !B) return;
+      var arr = bm.line.geometry.attributes.position.array;
+      arr[0] = A.x; arr[1] = A.y; arr[2] = A.z;
+      arr[3] = B.x; arr[4] = B.y; arr[5] = B.z;
+      bm.line.geometry.attributes.position.needsUpdate = true;
+      bm.line.material.opacity = 0.55 + 0.4 * (0.5 + 0.5 * Math.sin(now / 180));
+    });
+  }
+  function syncView() {
+    var now = performance.now();
+    var pulse = 0.16 + 0.18 * (0.5 + 0.5 * Math.sin(now / 170));
+    Object.keys(groups).forEach(function (id) {
+      var b = blobs[id], g = groups[id];
+      if (!b || !g) return;
+      g.position.set(b.x, b.y, b.z);
+      var s = 1;
+      if (anim && anim.kind === 'approach' && (id === anim.a || id === anim.b)) s = anim.scale;
+      if (anim && anim.kind === 'pop' && id === anim.id) s = anim.scale;
+      g.scale.setScalar(s);
+      var proposed = pending.some(function (p) { return p.a === id || p.b === id; });
+      if (g.userData.shell) {
+        g.userData.shell.visible = proposed;
+        if (proposed) g.userData.shell.material.opacity = pulse;
+      }
+      if (g.userData.sel) g.userData.sel.visible = !!(selected && (id === selected || containsId(id, selected)));
+    });
+    updateBeams();
+    if (flashMesh && anim && anim.kind === 'approach') {
+      flashMesh.visible = true;
+      flashMesh.position.set(anim.mid.x, anim.mid.y, anim.mid.z);
+      var u = Math.min(1, anim.t / anim.dur);
+      flashMesh.scale.setScalar(0.2 + u * 1.3);
+    } else if (flashMesh && anim && anim.kind === 'pop' && blobs[anim.id]) {
+      flashMesh.visible = true;
+      var R = blobs[anim.id];
+      flashMesh.position.set(R.x, R.y, R.z);
+      flashMesh.scale.setScalar(1.4 * (1 - Math.min(1, anim.t / anim.dur)) + 0.2);
+    } else if (flashMesh) flashMesh.visible = flashMesh.material.opacity > 0.02;
+    if (shockMesh) {
+      if (!shock) shockMesh.visible = false;
+      else {
+        var su = shock.t / shock.dur;
+        shockMesh.visible = true;
+        shockMesh.position.set(shock.x, shock.y, shock.z);
+        shockMesh.scale.setScalar(0.25 + su * 2.4);
+        shockMesh.material.opacity = 0.9 * (1 - su);
+        shockMesh.lookAt(camera.position);
+      }
+    }
+  }
+
+  function resize() {
+    if (!renderer || !camera) return;
+    var pw = panel ? panel.offsetWidth + 28 : 0;
+    var w = Math.max(240, window.innerWidth - (window.innerWidth > 760 ? pw : 0));
+    var h = window.innerHeight;
+    if (window.innerWidth <= 760) { w = window.innerWidth; h = window.innerHeight; }
+    renderer.setSize(w, h, false);
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  function pick(e) {
+    var rect = canvas.getBoundingClientRect();
+    pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    var hits = raycaster.intersectObjects(scene.children, true);
+    for (var i = 0; i < hits.length; i++) {
+      var o = hits[i].object;
+      while (o && !o.userData.id) o = o.parent;
+      if (o && o.userData.id && blobs[o.userData.id] && isLive(o.userData.id)) return o.userData.id;
+    }
+    return null;
+  }
+  var downSelect = null, emptyDown = null, dragHit = null, camDir = null;
+  function onPointerDown(e) {
+    if (e.button !== 0) return;
+    var id = pick(e);
+    if (!id) { emptyDown = { x: e.clientX, y: e.clientY }; downSelect = null; return; }
+    emptyDown = null;
+    downSelect = id;
+    var top = topAncestor(id), b = blobs[top];
+    camera.getWorldDirection(camDir);
+    dragPlane.setFromNormalAndCoplanarPoint(camDir, new THREE.Vector3(b.x, b.y, b.z));
+    drag = { id: top, pointerId: e.pointerId, moved: false, sx: e.clientX, sy: e.clientY };
+    controls.enabled = false;
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* optional */ }
+  }
+  function onPointerMove(e) {
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    if (Math.abs(e.clientX - drag.sx) + Math.abs(e.clientY - drag.sy) > 4) drag.moved = true;
+    if (!drag.moved) return;
+    var rect = canvas.getBoundingClientRect();
+    pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    if (raycaster.ray.intersectPlane(dragPlane, dragHit)) {
+      var b = blobs[drag.id];
+      b.x = dragHit.x; b.y = dragHit.y; b.z = dragHit.z;
+      b.vx = b.vy = b.vz = 0;
+      clampPos(b);
+    }
+  }
+  function onPointerUp(e) {
+    if (drag && e.pointerId === drag.pointerId) {
+      if (!drag.moved && downSelect) select(downSelect);
+      drag = null;
+      controls.enabled = true;
+    } else if (emptyDown && Math.abs(e.clientX - emptyDown.x) + Math.abs(e.clientY - emptyDown.y) < 5) {
+      select(null);
+    }
+    emptyDown = null;
+  }
+
+  function renderKey() {
+    var kinds = ['dir', 'image', 'audio', 'text', 'zip'];
+    order.forEach(function (id) {
+      if (!isLive(id)) return;
+      var k = kindOf(id);
+      if (k === 'empty' || k === 'mixed') k = 'dir';
+      if (kinds.indexOf(k) === -1) kinds.push(k);
+    });
+    document.getElementById('colorKey').innerHTML = kinds.map(function (k) {
+      return '<li data-kind="' + esc(k) + '">' + swatch(k) + esc(KIND_LABELS[k] || k) + '</li>';
+    }).join('');
+  }
+  function reasonText(p) {
+    var A = blobs[p.a], B = blobs[p.b];
+    var why = p.shared.length ? 'shared tag: ' + esc(p.shared.join(', ')) : 'same kind';
+    return 'Merge "' + esc(A.name) + '" + "' + esc(B.name) + '"?<br>' +
+      esc(kindOf(p.a)) + ' ↔ ' + esc(kindOf(p.b)) + ', ' + why +
+      ' · proposed by ' + esc(p.source);
+  }
+  function renderPending() {
+    var pl = document.getElementById('pendingList');
+    var box = document.getElementById('proposal');
+    var text = document.getElementById('proposalText');
+    var accBtn = document.getElementById('btnAccept');
+    var refBtn = document.getElementById('btnRefuse');
+    pl.innerHTML = '';
+    if (!pending.length) {
+      featuredKey = null;
+      box.hidden = true;
+      pl.innerHTML = '<div class="muted">none — similar blobs propose a merge when they meet</div>';
+      return;
+    }
+    featuredKey = pending[0].key;
+    pending.forEach(function (p) {
+      var d = document.createElement('div');
+      d.className = 'suggestion';
+      d.innerHTML = '<div class="reason">' + reasonText(p) + '</div>' +
+        '<button class="primary" type="button" data-accept="' + esc(p.key) + '">Accept</button> ' +
+        '<button type="button" data-refuse="' + esc(p.key) + '">Refuse</button>';
+      pl.appendChild(d);
+    });
+    var extra = pending.length > 1 ? ' <span class="muted">(' + pending.length + ' proposals — this is 1 of ' + pending.length + ')</span>' : '';
+    var merging = anim && anim.kind === 'approach';
+    text.innerHTML = (merging ? '<strong>Merging…</strong> ' : '<strong>Proposed merge.</strong> ') + reasonText(pending[0]) + extra +
+      (merging ? '' : '<br><span class="muted">Accept commits it. Refuse keeps this pair apart.</span>');
+    box.hidden = false;
+    accBtn.disabled = !!anim;
+    refBtn.disabled = !!anim;
+    pl.querySelectorAll('button').forEach(function (btn) { btn.disabled = !!anim; });
+  }
+  function renderInspector() {
+    var el = document.getElementById('inspector');
+    if (!selected || !blobs[selected] || !isLive(selected)) { el.innerHTML = '<div class="muted">Click a blob to inspect it.</div>'; return; }
+    var b = blobs[selected], zorb = isZorb(selected);
+    var kids = b.children.map(function (c) { return '<span class="child-link" data-select="' + esc(c) + '">' + esc(blobs[c].name) + '</span>'; }).join('') || '<span class="muted">—</span>';
+    var html = '<dl>' +
+      '<dt>Name</dt><dd>' + esc(b.name) + (b.autoName ? ' <span class="muted">(auto)</span>' : '') + '</dd>' +
+      '<dt>Type</dt><dd>' + (b.type === 'dir' ? 'directory' : (zorb ? 'file (zip archive, zorb)' : 'file')) + '</dd>' +
+      '<dt>Kind</dt><dd>' + swatch(kindOf(selected)) + ' ' + esc(kindOf(selected)) + '</dd>' +
+      '<dt>Mass</dt><dd>' + fmtBytes(massOf(selected)) + '</dd>' +
+      '<dt>Tags</dt><dd>' + (b.tags.length ? esc(b.tags.join(', ')) : '<span class="muted">—</span>') + '</dd>' +
+      (zorb ? '' : '<dt>Children</dt><dd>' + kids + '</dd>') +
+      '<dt>Rings</dt><dd>' + b.rings + '</dd></dl>';
+    if (zorb) html += '<button class="lime" id="btnUnpack" type="button" data-unpack="' + esc(selected) + '">Unpack into a folder</button>';
+    el.innerHTML = html;
+  }
+  function renderHistory() {
+    var ul = document.getElementById('history');
+    ul.innerHTML = '';
+    events.slice(-40).reverse().forEach(function (ev) {
+      var li = document.createElement('li');
+      li.innerHTML = '<span class="t">#' + ev.seq + ' ' + esc(ev.type) + '</span>' + esc(ev.text);
+      ul.appendChild(li);
+    });
+  }
+  function structureChanged() {
+    pending = pending.filter(function (p) { return blobs[p.a] && blobs[p.b] && blobs[p.a].parent === null && blobs[p.b].parent === null && !blobs[p.a].gone && !blobs[p.b].gone; });
+    if (scene) rebuildGroups();
+    renderPending(); renderInspector(); renderHistory(); renderKey();
+    syncView();
+  }
+  function select(id) { selected = id; renderInspector(); syncView(); }
+
+  function sampleDisk() {
+    var covers = createDir('Covers', ['music', 'art']);
+    createFile('cover1', 'image', 450000, ['music', 'art'], covers);
+    createFile('cover2', 'image', 380000, ['music', 'art'], covers);
+    var sessions = createDir('Sessions', ['music', '2024']);
+    createFile('take1', 'audio', 900000, ['music', '2024'], sessions);
+    createFile('take2', 'audio', 1100000, ['music', '2024'], sessions);
+    createDir('Masters', ['music']);
+    createFile('photo1', 'image', 2700000, ['vacation', '2024']);
+    createFile('photo2', 'image', 2800000, ['vacation', '2024']);
+    createFile('song1', 'audio', 800000, ['berlin-set', 'demo']);
+    createFile('notes', 'text', 12000, ['work']);
+    var stems = [
+      { name: 'kick.wav', kind: 'audio', size: 1250000 },
+      { name: 'bass.wav', kind: 'audio', size: 1480000 },
+      { name: 'alt/kick.wav', kind: 'audio', size: 1190000 },
+      { name: 'lyrics.txt', kind: 'text', size: 4200 },
+      { name: 'artwork.png', kind: 'image', size: 520000 }
+    ];
+    createFile('stems.zip', 'zip', stems.reduce(function (s, e) { return s + e.size; }, 0), ['stems'], null, stems);
+    order.forEach(function (id) { if (blobs[id].type === 'file') blobs[id].src = 'sample:' + blobs[id].name; });
+  }
+
+  function bindUi() {
+    document.getElementById('btnNew').addEventListener('click', function () {
+      var name = window.prompt('New blob name:', 'untitled');
+      if (name === null) return;
+      name = name.trim() || 'untitled';
+      var kind = window.prompt('Kind (' + KINDS.join(', ') + '):', 'text');
+      if (kind === null) return;
+      kind = kind.trim().toLowerCase();
+      if (KINDS.indexOf(kind) === -1) { setStatus('Unknown kind "' + kind + '", using text.'); kind = 'text'; }
+      var id = createFile(name, kind, 20000 + Math.floor(Math.random() * 2000000), []);
+      undoStack.push({ op: 'create', seq: events[events.length - 1].seq, ids: [id], what: 'blob "' + blobs[id].name + '"' });
+      placeNear(blobs[id]);
+      selected = id;
+      structureChanged();
+      setStatus('Created "' + blobs[id].name + '".');
+    });
+    document.getElementById('btnFolder').addEventListener('click', function () {
+      var name = window.prompt('Folder name:', 'New folder');
+      if (name === null) return;
+      var id = newFolder(name);
+      setStatus('Created folder "' + blobs[id].name + '".');
+    });
+    document.getElementById('btnSplit').addEventListener('click', function () {
+      try { var c = split(selected); setStatus('Split "' + blobs[c].name + '" out.'); }
+      catch (err) { setStatus(err.message); }
+    });
+    document.getElementById('btnRename').addEventListener('click', function () {
+      if (!selected) { setStatus('Select a blob first.'); return; }
+      var n = window.prompt('Rename "' + blobs[selected].name + '" to:', blobs[selected].name);
+      if (n !== null && rename(selected, n)) setStatus('Renamed.');
+    });
+    document.getElementById('btnTag').addEventListener('click', function () {
+      if (!selected) { setStatus('Select a blob first.'); return; }
+      var t = window.prompt('Add tag to "' + blobs[selected].name + '":', '');
+      if (t !== null && addTag(selected, t)) setStatus('Tagged.');
+    });
+    document.getElementById('btnUndo').addEventListener('click', function () {
+      var r = undo(); setStatus(r.msg);
+    });
+    document.getElementById('btnSave').addEventListener('click', onSave);
+    document.getElementById('btnAddFiles').addEventListener('click', function () { document.getElementById('inFiles').click(); });
+    document.getElementById('btnOpenOrb').addEventListener('click', function () { document.getElementById('inOrb').click(); });
+    document.getElementById('inFiles').addEventListener('change', function (e) { addFiles(e.target.files || []); e.target.value = ''; });
+    document.getElementById('inOrb').addEventListener('change', onOrbChosen);
+    document.getElementById('btnAccept').addEventListener('click', function () { if (featuredKey) beginAccept(featuredKey); });
+    document.getElementById('btnRefuse').addEventListener('click', function () { if (featuredKey) keepApart(featuredKey); });
+    document.getElementById('pendingList').addEventListener('click', function (e) {
+      var acc = e.target.closest ? e.target.closest('[data-accept]') : null;
+      var ref = e.target.closest ? e.target.closest('[data-refuse]') : null;
+      try {
+        if (acc) beginAccept(acc.getAttribute('data-accept'));
+        if (ref) keepApart(ref.getAttribute('data-refuse'));
+      } catch (err) { setStatus('Error: ' + err.message); }
+    });
+    document.getElementById('inspector').addEventListener('click', function (e) {
+      var s = e.target.closest ? e.target.closest('[data-select]') : null;
+      var up = e.target.closest ? e.target.closest('[data-unpack]') : null;
+      try {
+        if (s) select(s.getAttribute('data-select'));
+        if (up) {
+          var zid = up.getAttribute('data-unpack'), zn = blobs[zid].name, d = unpack(zid);
+          setStatus('Unpacked "' + zn + '" into "' + blobs[d].name + '". The zip is unchanged.');
+        }
+      } catch (err) { setStatus('Error: ' + err.message); }
+    });
+    window.addEventListener('keydown', function (e) {
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+      if (e.key === 'a' || e.key === 'A' || e.key === 'Enter') { if (featuredKey && !anim) { e.preventDefault(); beginAccept(featuredKey); } }
+      if (e.key === 'r' || e.key === 'R' || e.key === 'Escape') { if (featuredKey && !anim && e.key !== 'Escape') { e.preventDefault(); keepApart(featuredKey); } }
+    });
+    canvas.addEventListener('pointerdown', onPointerDown);
+    canvas.addEventListener('pointermove', onPointerMove);
+    canvas.addEventListener('pointerup', onPointerUp);
+    canvas.addEventListener('pointercancel', function () { drag = null; controls.enabled = true; });
+    canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    window.addEventListener('resize', resize);
+  }
+
+  function initThree() {
+    if (!window.THREE || !THREE.OrbitControls) throw new Error('Three.js failed to load. Serve this page over http (python3 -m http.server) if the CDN scripts were blocked.');
+    renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: false, preserveDrawingBuffer: true });
+    if (!renderer.getContext()) throw new Error('WebGL is not available in this browser.');
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setClearColor(0x0d1117, 1);
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0d1117);
+    scene.fog = new THREE.FogExp2(0x0d1117, 0.028);
+    camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
+    camera.position.set(7.2, 4.6, 11.5);
+    controls = new THREE.OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.target.set(0, 0.2, 0);
+    controls.minDistance = 2.2;
+    controls.maxDistance = 36;
+    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    scene.add(new THREE.HemisphereLight(0xc5d4ff, 0x2a2118, 0.55));
+    var dir = new THREE.DirectionalLight(0xffffff, 0.85);
+    dir.position.set(6, 10, 5);
+    scene.add(dir);
+    var grid = new THREE.GridHelper(22, 22, 0x243044, 0x1a2230);
+    grid.position.y = -5.4;
+    grid.raycast = function () {};
+    scene.add(grid);
+    var starPos = [];
+    for (var i = 0; i < 420; i++) {
+      var rr = 28 + Math.random() * 50;
+      var th = Math.random() * Math.PI * 2;
+      var ph = Math.acos(2 * Math.random() - 1);
+      starPos.push(rr * Math.sin(ph) * Math.cos(th), rr * Math.cos(ph), rr * Math.sin(ph) * Math.sin(th));
+    }
+    var sg = new THREE.BufferGeometry();
+    sg.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+    var stars = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0x9aa7b8, size: 1.3, sizeAttenuation: false }));
+    stars.raycast = function () {};
+    scene.add(stars);
+    flashMesh = new THREE.Mesh(new THREE.SphereGeometry(0.45, 20, 16), new THREE.MeshBasicMaterial({ color: 0xfff3c4, transparent: true, opacity: 0, depthWrite: false }));
+    flashMesh.visible = false;
+    flashMesh.raycast = function () {};
+    scene.add(flashMesh);
+    shockMesh = new THREE.Mesh(new THREE.TorusGeometry(1, 0.035, 8, 64), new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.9, depthWrite: false }));
+    shockMesh.visible = false;
+    shockMesh.raycast = function () {};
+    scene.add(shockMesh);
+    raycaster = new THREE.Raycaster();
+    pointer = new THREE.Vector2();
+    dragPlane = new THREE.Plane();
+    dragHit = new THREE.Vector3();
+    camDir = new THREE.Vector3();
+    clock = new THREE.Clock();
+    resize();
+  }
+
+  function loop() {
+    requestAnimationFrame(loop);
+    if (!booted || paused) return;
+    var dt = clock.getDelta();
+    frameStep(dt);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+
+  function init() {
+    canvas = document.getElementById('view');
+    panel = document.getElementById('panel');
+    msgEl = document.getElementById('msg');
+    statusEl = document.getElementById('status');
+    initThree();
+    sampleDisk();
+    initialLayout();
+    bindUi();
+    structureChanged();
+    booted = true;
+    setStatus('BlobFS 3D ready: ' + topLevel().length + ' orbs, ' + order.length + ' blobs. Similar blobs drift together; a merge waits for Accept.');
+    document.body.dataset.ready = '1';
+    window.BlobFS3D = {
+      ready: true,
+      blobs: blobs,
+      events: events,
+      topLevel: topLevel,
+      byName: function (n) { for (var i = 0; i < order.length; i++) if (blobs[order[i]].name === n && isLive(order[i])) return order[i]; return null; },
+      pending: function () { return pending.map(function (p) { return { key: p.key, a: p.a, b: p.b, source: p.source, shared: p.shared.slice(), crossKind: p.crossKind }; }); },
+      refused: function () { return Object.keys(refused); },
+      kindOf: kindOf, massOf: massOf, sameKind: sameKind, sharedTags: sharedTags, pullOf: pullOf, canPropose: canPropose, radiusOf: radiusOf,
+      accept: beginAccept, refuse: keepApart, merge: merge, undo: undo, split: split,
+      setPos: function (id, x, y, z) { var b = blobs[id]; b.x = x; b.y = y; b.z = z; b.vx = b.vy = b.vz = 0; syncView(); },
+      pos: function (id) { var b = blobs[id]; return { x: b.x, y: b.y, z: b.z }; },
+      gap: function (a, b) {
+        var A = blobs[a], B = blobs[b];
+        var dx = A.x - B.x, dy = A.y - B.y, dz = A.z - B.z;
+        return Math.sqrt(dx * dx + dy * dy + dz * dz) - radiusOf(a) - radiusOf(b);
+      },
+      step: function (dt) { if (!anim) physics(dt); syncView(); renderer.render(scene, camera); },
+      advance: function (dt) { frameStep(dt); controls.update(); renderer.render(scene, camera); },
+      visualScale: function (id) { return groups[id] ? groups[id].scale.x : null; },
+      render: function () { syncView(); controls.update(); renderer.render(scene, camera); },
+      pause: function (on) { paused = !!on; if (clock) clock.getDelta(); },
+      animating: function () { return !!anim; },
+      animKind: function () { return anim ? anim.kind : null; },
+      setWander: function (on) { wanderEnabled = !!on; },
+      setFocus: function (ids) {
+        if (!ids) { focus = null; return; }
+        focus = {};
+        ids.forEach(function (id) { if (id) focus[id] = 1; });
+      },
+      buildOrb: buildOrb,
+      loadBuffer: function (buf, name) { return loadOrbZip(buf, name || 'blob.orb'); },
+      groupCount: function () { return Object.keys(groups).length; }
+    };
+    loop();
+  }
+
+  try { init(); }
+  catch (e) { showError(e); if (window.console && console.error) console.error(e); }
+})();
+</script>
+</body>
+</html>

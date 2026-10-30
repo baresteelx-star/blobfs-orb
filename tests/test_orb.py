@@ -4,6 +4,7 @@ Run from the repo root:  python -m unittest -v tests.test_orb
 Uses only the standard library and orb.py. No browser.
 """
 import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -343,6 +344,196 @@ class OrbRules(unittest.TestCase):
             b = disk.blobs[i]
             return (i, b["name"], b["type"], tuple(walk(c) for c in disk.children[i]))
         return tuple(walk(i) for i in disk.top_level())
+
+
+class AiDelegation(unittest.TestCase):
+    """A delegation lets an AI commit merges of one kind above a threshold. Anything else is refused."""
+
+    def _pair(self, threshold=0.8):
+        d = orb.Disk()
+        a = d.add_file("a.png", b"a")
+        b = d.add_file("b.png", b"b")
+        undo = len(d.undo)
+        deleg = d.delegate("image", threshold)
+        self.assertEqual(len(d.undo), undo)          # delegation is not an undoable merge
+        self.assertEqual(deleg["type"], "delegation")
+        self.assertEqual(deleg["kind"], "image")
+        self.assertEqual(deleg["threshold"], threshold)
+        self.assertEqual(deleg["confirmedBy"], "human")
+        return d, a, b, deleg
+
+    def _assert_unmerged(self, d, *ids):
+        for i in ids:
+            self.assertIsNone(d.parent[i])
+        self.assertFalse(any(e.get("type") == "merge" for e in d.events))
+
+    def test_delegated_ai_merge_is_stored_and_reloads(self):
+        d, a, b, deleg = self._pair()
+        c = d.add_file("c.png", b"c")
+        e = d.add_file("e.png", b"e")
+        result = d.merge(a, b, confirmed_by="ai", delegation=deleg["seq"], confidence=0.95)
+        named = d.merge(c, e, confirmed_by="ai-curator", delegation=deleg["seq"], confidence=0.91)
+        ev = next(x for x in d.events if x.get("type") == "merge" and x.get("a") == a)
+        self.assertEqual(ev["confirmedBy"], "ai")
+        self.assertEqual(ev["delegation"], deleg["seq"])
+        self.assertEqual(ev["confidence"], 0.95)
+        self.assertEqual(ev["kinds"], ["image", "image"])
+        self.assertIn("delegation #%s" % deleg["seq"], ev["text"])
+        self.assertEqual(d.parent[a], result)
+        self.assertEqual(d.parent[b], result)
+        curator = next(x for x in d.events if x.get("confirmedBy") == "ai-curator")
+        self.assertEqual(curator["delegation"], deleg["seq"])
+        self.assertEqual(d.parent[c], named)
+        rec = next(r for r in d.records() if r["t"] == "merge" and r["a"] == a)
+        self.assertEqual(rec["delegation"], deleg["seq"])
+        self.assertEqual(rec["confidence"], 0.95)
+        with tempfile.TemporaryDirectory() as t:
+            path = os.path.join(t, "delegated.orb")
+            orb.save(d, path)
+            back = orb.load(path)
+            merges = [x for x in back.events if x.get("type") == "merge" and orb.is_ai_actor(x.get("confirmedBy"))]
+            self.assertEqual(len(merges), 2)
+            self.assertEqual(merges[0]["delegation"], deleg["seq"])
+            self.assertEqual(merges[0]["confidence"], 0.95)
+            dels = [x for x in back.events if x.get("type") == "delegation"]
+            self.assertEqual([(x["kind"], x["threshold"]) for x in dels], [("image", 0.8)])
+            self.assertEqual(back.parent[back.by_name("a.png")], back.by_name("b.png + a.png"))
+
+    def test_ai_merge_rejects_wrong_kind(self):
+        d, _a, _b, deleg = self._pair()
+        wav_a = d.add_file("a.wav", b"a")
+        wav_b = d.add_file("b.wav", b"b")
+        with self.assertRaisesRegex(orb.OrbError, 'kind "audio" \\+ "audio" is outside delegation #%s \\(kind "image"\\)' % deleg["seq"]):
+            d.merge(wav_a, wav_b, confirmed_by="ai", delegation=deleg["seq"], confidence=0.99)
+        self.assertIsNone(d.parent[wav_a])
+        self.assertIsNone(d.parent[wav_b])
+        png = d.by_name("a.png")
+        with self.assertRaisesRegex(orb.OrbError, "outside delegation"):
+            d.merge(png, wav_a, confirmed_by="ai", delegation=deleg["seq"], confidence=0.99)
+        self._assert_unmerged(d, png, wav_a, wav_b)
+
+    def test_ai_merge_rejects_confidence_not_above_threshold(self):
+        d, a, b, deleg = self._pair()
+        with self.assertRaisesRegex(orb.OrbError, "confidence 0.8 is not above threshold 0.8"):
+            d.merge(a, b, confirmed_by="ai", delegation=deleg["seq"], confidence=0.8)
+        with self.assertRaisesRegex(orb.OrbError, "confidence 0.5 is not above threshold 0.8"):
+            d.merge(a, b, confirmed_by="ai", delegation=deleg["seq"], confidence=0.5)
+        with self.assertRaisesRegex(orb.OrbError, "AI commit has no confidence"):
+            d.merge(a, b, confirmed_by="ai", delegation=deleg["seq"])
+        self._assert_unmerged(d, a, b)
+
+    def test_ai_merge_rejects_missing_delegation_reference(self):
+        d, a, b, deleg = self._pair()
+        with self.assertRaisesRegex(orb.OrbError, "AI commit has no delegation reference"):
+            d.merge(a, b, confirmed_by="ai", confidence=0.95)
+        with self.assertRaisesRegex(orb.OrbError, "delegation #999, which is not in the log"):
+            d.merge(a, b, confirmed_by="ai", delegation=999, confidence=0.95)
+        with self.assertRaisesRegex(orb.OrbError, "which is not in the log"):
+            d.merge(a, b, confirmed_by="ai", delegation=deleg["seq"] + 1, confidence=0.95)
+        self._assert_unmerged(d, a, b)
+        self.assertTrue(any(e.get("type") == "delegation" and e.get("seq") == deleg["seq"] for e in d.events))
+
+    def test_ai_merge_rejects_after_revocation(self):
+        d, a, b, deleg = self._pair()
+        d.merge(a, b, confirmed_by="ai", delegation=deleg["seq"], confidence=0.95)
+        undo = len(d.undo)
+        rev = d.revoke(deleg["seq"])
+        self.assertEqual(len(d.undo), undo)
+        self.assertEqual(rev["type"], "revocation")
+        self.assertEqual(rev["delegation"], deleg["seq"])
+        self.assertEqual(rev["kind"], "image")
+        with tempfile.TemporaryDirectory() as t:
+            path = os.path.join(t, "revoked.orb")
+            orb.save(d, path)                         # the earlier merge stays valid
+            back = orb.load(path)
+            self.assertTrue(any(e.get("type") == "revocation" for e in back.events))
+            self.assertTrue(any(e.get("type") == "merge" and e.get("confirmedBy") == "ai" for e in back.events))
+        c = d.add_file("c.png", b"c")
+        e = d.add_file("e.png", b"e")
+        with self.assertRaisesRegex(orb.OrbError, "delegation #%s was revoked" % deleg["seq"]):
+            d.merge(c, e, confirmed_by="ai", delegation=deleg["seq"], confidence=0.99)
+        self.assertIsNone(d.parent[c])
+        self.assertIsNone(d.parent[e])
+        # a different delegation is its own scope
+        audio = d.delegate("audio", 0.5)
+        w1 = d.add_file("a.wav", b"a")
+        w2 = d.add_file("b.wav", b"b")
+        heard = d.merge(w1, w2, confirmed_by="ai", delegation=audio["seq"], confidence=0.51)
+        self.assertEqual(d.parent[w1], heard)
+        with self.assertRaisesRegex(orb.OrbError, "already revoked"):
+            d.revoke(deleg["seq"])
+        with self.assertRaisesRegex(orb.OrbError, "no delegation #999"):
+            d.revoke(999)
+
+    def test_delegation_and_revocation_are_commits_by_hand(self):
+        d = orb.Disk()
+        with self.assertRaisesRegex(orb.OrbError, "delegation is a commit by hand"):
+            d.delegate("image", 0.8, by="ai")
+        with self.assertRaisesRegex(orb.OrbError, "delegation needs a kind"):
+            d.delegate("", 0.8)
+        with self.assertRaisesRegex(orb.OrbError, "delegation threshold must be a number"):
+            d.delegate("image", "high")
+        self.assertFalse(any(e.get("type") == "delegation" for e in d.events))
+        deleg = d.delegate("image", 0.8, by="human-api")
+        self.assertEqual(deleg["confirmedBy"], "human-api")
+        with self.assertRaisesRegex(orb.OrbError, "revocation is a commit by hand"):
+            d.revoke(deleg["seq"], by="ai")
+        self.assertFalse(any(e.get("type") == "revocation" for e in d.events))
+
+    def test_person_still_commits_and_physics_never_does(self):
+        d, a, b, deleg = self._pair()
+        with self.assertRaisesRegex(orb.OrbError, "physics may propose, never commit"):
+            d.merge(a, b, confirmed_by="physics", delegation=deleg["seq"], confidence=1)
+        self._assert_unmerged(d, a, b)
+        result = d.merge(a, b, confirmed_by="human-api")
+        ev = next(e for e in d.events if e.get("type") == "merge")
+        self.assertEqual(ev["confirmedBy"], "human-api")
+        self.assertNotIn("delegation", ev)
+        self.assertEqual(d.parent[a], result)
+        self.assertNotIn("delegation", next(r for r in d.records() if r["t"] == "merge"))
+
+    def test_load_rejects_ai_commit_outside_its_delegation(self):
+        d, a, b, deleg = self._pair()
+        d.merge(a, b, confirmed_by="ai", delegation=deleg["seq"], confidence=0.95)
+        ev = next(e for e in d.events if e.get("type") == "merge")
+        ev["confidence"] = 0.1
+        with self.assertRaisesRegex(orb.OrbError, "not above threshold"):
+            d.verify()
+        ev["confidence"] = 0.95
+        ev["kinds"] = ["audio", "audio"]
+        with self.assertRaisesRegex(orb.OrbError, "outside delegation"):
+            d.verify()
+        ev["kinds"] = ["image", "image"]
+        saved = ev.pop("delegation")
+        with self.assertRaisesRegex(orb.OrbError, "AI commit has no delegation reference"):
+            d.verify()
+        ev["delegation"] = saved
+        d.verify()
+        # a revocation placed before the merge, as a rewritten log would carry it
+        d.events.insert(0, {"seq": 0, "time": ev["time"], "type": "revocation", "text": "revoked",
+                            "delegation": deleg["seq"], "kind": "image", "confirmedBy": "human"})
+        with self.assertRaisesRegex(orb.OrbError, "was revoked"):
+            d.verify()
+        d.events.pop(0)
+        with tempfile.TemporaryDirectory() as t:
+            src, bad = os.path.join(t, "ok.orb"), os.path.join(t, "nodeleg.orb")
+            orb.save(d, src)
+
+            def mut(name, data):
+                if name != "records.jsonl":
+                    return data
+                lines = []
+                for line in data.decode("utf-8").splitlines():
+                    if '"type":"merge"' in line and '"confirmedBy":"ai"' in line:
+                        rec = json.loads(line)
+                        rec.pop("delegation", None)
+                        line = json.dumps(rec, ensure_ascii=False, separators=(",", ":"))
+                    lines.append(line)
+                return ("\n".join(lines) + "\n").encode("utf-8")
+
+            rewrite(src, bad, mut)
+            with self.assertRaisesRegex(orb.OrbError, "AI commit has no delegation reference"):
+                orb.load(bad)
 
 
 if __name__ == "__main__":

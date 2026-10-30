@@ -239,6 +239,67 @@ class CrossLanguage(unittest.TestCase):
                     self.assertEqual(sum(1 for r in recs if r["t"] == "undo"), len(d.undo))
 
 
+    def _delegated_orb(self, directory):
+        d = orb.Disk()
+        a = d.add_file("a.png", b"png-a")
+        b = d.add_file("b.png", b"png-b")
+        deleg = d.delegate("image", 0.8)
+        d.merge(a, b, confirmed_by="ai", delegation=deleg["seq"], confidence=0.9)
+        path = os.path.join(directory, "delegated.orb")
+        orb.save(d, path)
+        return path, deleg
+
+    def _without_delegation(self, src, dst):
+        def mut(name, data):
+            if name != "records.jsonl":
+                return data
+            lines = []
+            for line in data.decode("utf-8").splitlines():
+                if not line.strip():
+                    continue
+                rec = json.loads(line)
+                if rec.get("t") == "event" and rec.get("type") == "merge" and rec.get("confirmedBy") == "ai":
+                    rec.pop("delegation", None)
+                lines.append(json.dumps(rec, ensure_ascii=False, separators=(",", ":")))
+            return ("\n".join(lines) + "\n").encode("utf-8")
+
+        with zipfile.ZipFile(src) as z, zipfile.ZipFile(dst, "w") as w:
+            for name in z.namelist():
+                w.writestr(name, mut(name, z.read(name)))
+
+    def test_delegated_ai_merge_round_trip(self):
+        with tempfile.TemporaryDirectory() as t:
+            src, deleg = self._delegated_orb(t)
+            for br in BROWSERS:
+                with self.subTest(browser=br):
+                    out = os.path.join(t, br + "-delegated.orb")
+                    res = run_page(br, src, save=out)
+                    self.compare_load(src, res)
+                    back = orb.load(out)
+                    merges = [e for e in back.events if e.get("confirmedBy") == "ai"]
+                    self.assertEqual(len(merges), 1)
+                    self.assertEqual(merges[0]["delegation"], deleg["seq"])
+                    self.assertEqual(merges[0]["confidence"], 0.9)
+                    self.assertEqual(merges[0]["kinds"], ["image", "image"])
+                    dels = [e for e in back.events if e.get("type") == "delegation"]
+                    self.assertEqual([(e["kind"], e["threshold"], e["confirmedBy"]) for e in dels], [("image", 0.8, "human")])
+                    self.assertIsNotNone(back.parent[back.by_name("a.png")])
+                    self.assertEqual(back.payload(back.by_name("a.png")), b"png-a")
+
+    def test_page_and_python_reject_ai_merge_without_delegation(self):
+        with tempfile.TemporaryDirectory() as t:
+            src, _deleg = self._delegated_orb(t)
+            bad = os.path.join(t, "nodeleg.orb")
+            self._without_delegation(src, bad)
+            with self.assertRaisesRegex(orb.OrbError, "AI commit has no delegation reference"):
+                orb.load(bad)
+            for br in BROWSERS:
+                with self.subTest(browser=br):
+                    res = run_page(br, bad)
+                    self.assertTrue(res["openReply"].startswith("Could not open nodeleg.orb: AI commit has no delegation reference"), res["openReply"])
+                    self.assertEqual(res["console"], [])
+
+
 def tearDownModule():
     sys.stderr.write("\ncrosslang stats: %s\n" % json.dumps(STATS))
 

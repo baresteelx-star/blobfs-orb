@@ -126,7 +126,7 @@
   <div id="inspector"><div class="muted">Click an orb to inspect it.</div></div>
   <h3>History</h3>
   <ul id="history"></ul>
-  <div class="hint">Drag an orb onto another and release to merge. Same kind merges on drop. Different kinds need a shared tag and your confirmation (amber glow, Accept / Keep apart). Without a shared tag they bounce apart. Pull apart before release to cancel. Physics may propose, never commit. The lime orb is a zorb (a zip): open it to see its contents, unpack copies them into a new folder orb. Save Orb writes a real .orb zip (demo.orb.zip: MAGIC, records.jsonl, each payload stored once under objects/ named by its SHA-256), which Open .orb reloads. Export history downloads the event log as readable text (blobfs-history.txt). The .orb also keeps the undo history and pending suggestions. Files you add, import or drop onto the stage are stored as their real bytes (sample-disk files have none and are marked as placeholders). Files of 4 GiB or more are refused (zip32 limit). Opens, plays and exports are logged as local events; nothing is sent anywhere.</div>
+  <div class="hint">Drag an orb onto another and release to merge. Same kind merges on drop. Different kinds need a shared tag and your confirmation (amber glow, Accept / Keep apart). Without a shared tag they bounce apart. Pull apart before release to cancel. Physics may propose, never commit. A person may delegate one kind to an AI (<code>delegate image above 0.8</code>): an AI merge is stored only when it cites that delegation, both sides are that kind, and its confidence is above the threshold. <code>revoke</code> records the withdrawal. The lime orb is a zorb (a zip): open it to see its contents, unpack copies them into a new folder orb. Save Orb writes a real .orb zip (demo.orb.zip: MAGIC, records.jsonl, each payload stored once under objects/ named by its SHA-256), which Open .orb reloads. Export history downloads the event log as readable text (blobfs-history.txt). The .orb also keeps the undo history and pending suggestions. Files you add, import or drop onto the stage are stored as their real bytes (sample-disk files have none and are marked as placeholders). Files of 4 GiB or more are refused (zip32 limit). Opens, plays and exports are logged as local events; nothing is sent anywhere.</div>
 </div>
 <script>
 (function () {
@@ -304,13 +304,84 @@
     pending = pending.filter(function (p) { return ids.indexOf(p.a) === -1 && ids.indexOf(p.b) === -1; });
   }
 
-  function merge(a, b, confirmedBy) {
+  function isAi(confirmedBy) {
+    return confirmedBy === 'ai' || (typeof confirmedBy === 'string' && (confirmedBy.indexOf('ai-') === 0 || confirmedBy.indexOf('ai:') === 0));
+  }
+  function isPerson(confirmedBy) {
+    return confirmedBy === 'human' || (typeof confirmedBy === 'string' && (confirmedBy.indexOf('human-') === 0 || confirmedBy.indexOf('human:') === 0));
+  }
+  function finiteNumber(value) {
+    return typeof value === 'number' && isFinite(value) ? value : null;
+  }
+  function delegationEvent(seq, evs, beforeSeq) {
+    for (var i = 0; i < evs.length; i++) {
+      var ev = evs[i];
+      if (ev.type === 'delegation' && ev.seq === seq) {
+        if (beforeSeq != null && !(ev.seq < beforeSeq)) return null;
+        return ev;
+      }
+    }
+    return null;
+  }
+  function delegationRevoked(seq, evs, beforeSeq) {
+    // beforeSeq null means "right now": any revocation counts. A later revocation does not un-commit.
+    for (var i = 0; i < evs.length; i++) {
+      var ev = evs[i];
+      if (ev.type !== 'revocation' || ev.delegation !== seq) continue;
+      if (beforeSeq == null || ev.seq < beforeSeq) return true;
+    }
+    return false;
+  }
+  function enforceDelegation(delegation, confidence, kinds, beforeSeq, evs) {
+    evs = evs || events;
+    if (delegation === null || delegation === undefined) throw new Error('AI commit has no delegation reference');
+    var ev = delegationEvent(delegation, evs, beforeSeq);
+    if (!ev) throw new Error('AI commit references delegation #' + delegation + ', which is not in the log');
+    if (delegationRevoked(delegation, evs, beforeSeq)) throw new Error('delegation #' + delegation + ' was revoked');
+    var ka = kinds && kinds.length > 0 ? kinds[0] : null, kb = kinds && kinds.length > 1 ? kinds[1] : null;
+    if (ka !== ev.kind || kb !== ev.kind) {
+      throw new Error('AI commit of kind "' + ka + '" + "' + kb + '" is outside delegation #' + delegation + ' (kind "' + ev.kind + '")');
+    }
+    if (finiteNumber(confidence) === null) throw new Error('AI commit has no confidence');
+    if (!(confidence > ev.threshold)) throw new Error('confidence ' + confidence + ' is not above threshold ' + ev.threshold);
+    return ev;
+  }
+  function assertAiHistory(evs) {
+    (evs || []).forEach(function (ev) {
+      if (!ev || ev.type !== 'merge' || !isAi(ev.confirmedBy)) return;
+      enforceDelegation(ev.delegation, ev.confidence, ev.kinds, ev.seq, evs);
+    });
+  }
+  function delegate(kind, threshold, by) {
+    by = by || 'human';
+    if (!isPerson(by)) throw new Error('delegation is a commit by hand');
+    if (typeof kind !== 'string' || !kind) throw new Error('delegation needs a kind');
+    if (finiteNumber(threshold) === null) throw new Error('delegation threshold must be a number');
+    var ev = logEvent('delegation', { kind: kind, threshold: threshold, confirmedBy: by },
+      'delegated merges of kind "' + kind + '" to AI when confidence is above ' + threshold + ' (by ' + by + ')', []);
+    renderHistory();
+    return ev;
+  }
+  function revoke(delegation, by) {
+    by = by || 'human';
+    if (!isPerson(by)) throw new Error('revocation is a commit by hand');
+    var ev = delegationEvent(delegation, events, null);
+    if (!ev) throw new Error('no delegation #' + delegation);
+    if (delegationRevoked(delegation, events, null)) throw new Error('delegation #' + delegation + ' is already revoked');
+    var rec = logEvent('revocation', { delegation: delegation, kind: ev.kind, confirmedBy: by },
+      'revoked delegation #' + delegation + ' (kind "' + ev.kind + '", by ' + by + ')', []);
+    renderHistory();
+    return rec;
+  }
+
+  function merge(a, b, confirmedBy, delegation, confidence) {
     if (confirmedBy === 'physics') throw new Error('physics may propose, never commit');
     var A = blobs[a], B = blobs[b];
     if (!A || !B || a === b) throw new Error('bad merge');
     if (A.parent || B.parent) throw new Error('only top-level orbs merge');
     var result, rule, renames = [], nameA = A.name, nameB = B.name, moved = null;
     var px = B.x, py = B.y, kinds = [kindOf(a), kindOf(b)];
+    if (isAi(confirmedBy)) enforceDelegation(delegation, confidence, kinds, null, events);
     if (A.type === 'dir' && B.type === 'dir') {
       // dir + dir = ONE directory holding all children of both; clashes get 'name (2)';
       // child folders move across whole, as sub-orbs (nested folders are never flattened)
@@ -343,10 +414,16 @@
     R.rings += 1;
     renames = renames.filter(Boolean);
     removePendingFor([a, b]);
-    var ev = logEvent('merge', { a: a, b: b, result: result, rule: rule, confirmedBy: confirmedBy, kinds: kinds,
-                        resultMass: massOf(result), renamed: renames, absorbed: moved ? [a, b] : undefined },
-             'merged "' + nameA + '" + "' + nameB + '" → "' + R.name + '" (' + rule + ', by ' + confirmedBy + ')' +
-             (renames.length ? '; renamed ' + renames.map(function (r) { return '"' + r.from + '"→"' + r.to + '"'; }).join(', ') : ''),
+    var mergeData = { a: a, b: b, result: result, rule: rule, confirmedBy: confirmedBy, kinds: kinds,
+                      resultMass: massOf(result), renamed: renames, absorbed: moved ? [a, b] : undefined };
+    var mergeText = 'merged "' + nameA + '" + "' + nameB + '" → "' + R.name + '" (' + rule + ', by ' + confirmedBy + ')' +
+             (renames.length ? '; renamed ' + renames.map(function (r) { return '"' + r.from + '"→"' + r.to + '"'; }).join(', ') : '');
+    if (isAi(confirmedBy)) {
+      mergeText += ' [delegation #' + delegation + ', confidence ' + confidence + ']';
+      mergeData.delegation = delegation;
+      mergeData.confidence = confidence;
+    }
+    var ev = logEvent('merge', mergeData, mergeText,
              [a, b, result].filter(function (x, i, arr) { return arr.indexOf(x) === i; }));
     undoStack.push({ op: 'merge', seq: ev.seq, rule: rule, a: a, b: b, result: result, nameA: nameA, nameB: nameB, moved: moved,
                      ax: A.x, ay: A.y, bx: px, by: py });
@@ -1135,7 +1212,13 @@
         recs.push(r);
       });
       ids.forEach(function (id) { blobs[id].children.forEach(function (c, i) { recs.push({ t: 'link', parent: id, child: c, index: i }); }); });
-      events.forEach(function (ev) { if (ev.type === 'merge') recs.push({ t: 'merge', time: ev.time, seq: ev.seq, a: ev.a, b: ev.b, result: ev.result, rule: ev.rule, detail: ev.text }); });
+      events.forEach(function (ev) {
+        if (ev.type !== 'merge') return;
+        var m = { t: 'merge', time: ev.time, seq: ev.seq, a: ev.a, b: ev.b, result: ev.result, rule: ev.rule, detail: ev.text };
+        if (ev.delegation !== undefined) m.delegation = ev.delegation;
+        if (ev.confidence !== undefined) m.confidence = ev.confidence;
+        recs.push(m);
+      });
       topLevel().forEach(function (id) { recs.push({ t: 'position', id: id, x: Math.round(blobs[id].x), y: Math.round(blobs[id].y) }); });
       Object.keys(refused).forEach(function (k) { recs.push({ t: 'refused', key: k }); });
       undoStack.forEach(function (u, i) { recs.push({ t: 'undo', pos: i, rec: JSON.parse(JSON.stringify(u)) }); });
@@ -1334,6 +1417,7 @@
   }
   function loadOrb(data, fileName) {
     if (!data || data.format !== 'blobfs-orb' || !data.state || !data.state.blobs) throw new Error('not a BlobFS .orb file');
+    assertAiHistory(data.events || []);
     Object.keys(blobs).forEach(function (k) { delete blobs[k]; });
     order.length = 0; events.length = 0; undoStack.length = 0; pending = []; refused = {}; selected = null; lastOpen = null;
     var src = data.state.blobs, maxId = 0, noPos = [];
@@ -1457,6 +1541,9 @@
   }
   var HELP = [
     ['merge X and Y', 'or "merge X into Y"; same kind merges, cross-kind needs a shared tag + accept'],
+    ['delegate KIND above N', 'let AI commit merges of KIND when confidence is above N'],
+    ['revoke N', 'record that delegation #N no longer allows AI commits'],
+    ['ai merge X and Y under N at C', 'AI commit; rejected outside delegation #N'],
     ['accept', 'accept the pending suggestion'], ['refuse', 'or "keep apart"'],
     ['split X', 'split X out (or the selected orb)'], ['undo', 'reverse the last action (adds an undo event)'],
     ['open X', 'inspect X; a zorb lists its contents'], ['play X', 'play an audio orb'],
@@ -1497,6 +1584,27 @@
       if (/^(import|add|open|choose|pick)( a| my| the)? (folder|directory)$/.test(lc)) { askPicker('btnImportFolder'); return; }
       if (/^(add|import|upload|choose|pick)( some| a| the)? files?$/.test(lc)) { askPicker('btnAddFiles'); return; }
       if (/^(open|load|import)( an| the| a)? (\.|dot )?orb( file)?$/.test(lc)) { askPicker('btnOpenOrb'); return; }
+      if ((m = /^delegate\s+([A-Za-z0-9_-]+)\s+above\s+([0-9]*\.?[0-9]+)$/i.exec(t))) {
+        var dev = delegate(m[1].toLowerCase(), Number(m[2]), 'human-command');
+        reply('Delegated merges of kind "' + dev.kind + '" to AI when confidence is above ' + dev.threshold + ' (#' + dev.seq + ').', 'ok');
+        return;
+      }
+      if ((m = /^revoke(?:\s+delegation)?\s+#?(\d+)$/i.exec(t))) {
+        var rev = revoke(Number(m[1]), 'human-command');
+        reply('Revoked delegation #' + rev.delegation + ' (kind "' + rev.kind + '").', 'ok');
+        return;
+      }
+      if ((m = /^ai\s+merge\s+(.+?)\s+(?:and|into|with|\+)\s+(.+?)(?:\s+under\s+(\d+))?(?:\s+at\s+([0-9]*\.?[0-9]+))?$/i.exec(t))) {
+        var ia = need(m[1]); if (!ia) return;
+        var ib = need(m[2]); if (!ib) return;
+        if (ia === ib) { reply('That is the same orb twice.', 'err'); return; }
+        var delegation = m[3] != null && m[3] !== '' ? Number(m[3]) : undefined;
+        var confidence = m[4] != null && m[4] !== '' ? Number(m[4]) : undefined;
+        var ina = blobs[ia].name, inb = blobs[ib].name;
+        merge(ia, ib, 'ai', delegation, confidence);
+        reply('AI merged "' + ina + '" and "' + inb + '" into "' + blobs[selected].name + '" under delegation #' + delegation + ' at confidence ' + confidence + '.', 'ok');
+        return;
+      }
       if ((m = /^(?:merge|combine|join)\s+(.+?)\s+(?:and|into|with|onto|to|\+)\s+(.+)$/i.exec(t))) {
         var a = need(m[1]); if (!a) return;
         var b = need(m[2]); if (!b) return;
@@ -1723,6 +1831,8 @@
     split: function (id) { return split(id); },
     accept: acceptSuggestion, keepApart: keepApart, rename: rename, tag: addTag, select: select, snapshot: snapshot,
     unpack: unpack, undo: undo, run: function (t) { runCommand(t, 'api'); return replyEl.textContent; },
+    delegate: delegate, revoke: revoke,
+    merge: function (a, b, confirmedBy, delegation, confidence) { return merge(a, b, confirmedBy, delegation, confidence); },
     resolveName: resolveName, view: function () { return { z: view.z, tx: view.tx, ty: view.ty }; }, loadOrb: loadOrb,
     buildOrb: buildOrb, sha256: sha256, sha256js: function (u8) { return hex(sha256js(u8)); }, useJsSha: function (on) { forceJsSha = !!on; },
     undoDepth: function () { return undoStack.length; }, lastLoad: function () { return lastLoad; }, zip32Check: zip32Check, addFiles: function (fs) { return addFiles(fs, 'files'); }

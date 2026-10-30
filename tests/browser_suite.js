@@ -605,6 +605,168 @@ async function runBrowser(bname) {
     check('a payload whose CRC header was flipped is refused as a CRC mismatch', /^Could not open crcbad\.orb: CRC mismatch/.test(crcReply), crcReply);
     await page.close();
 
+    // ---- AI delegation: a person hands over one kind; the storage layer keeps the AI inside it ----
+    page = await fresh();
+    await page.evaluate(() => BlobFS.addFiles([
+      new File([new Uint8Array([1])], 'redpic.png'),
+      new File([new Uint8Array([2])], 'bluepic.png'),
+      new File([new Uint8Array([3])], 'greenpic.png'),
+      new File([new Uint8Array([4])], 'limepic.png'),
+      new File([new Uint8Array([5])], 'kickdrum.wav'),
+      new File([new Uint8Array([6])], 'snaredrum.wav')
+    ]));
+    const helpReply = await cmd(page, 'what can I say?');
+    const helpText = await page.textContent('#helpBox');
+    check('help lists delegate, revoke, and ai merge', /Here is what you can say/.test(helpReply) &&
+      /delegate KIND above N/.test(helpText) && /revoke N/.test(helpText) && /ai merge X and Y under N at C/.test(helpText), helpText);
+    const undoAtDelegate = await page.evaluate(() => BlobFS.undoDepth());
+    const delReply = await cmd(page, 'delegate image above 0.8');
+    const delSeq = Number((/#(\d+)\)/.exec(delReply) || [])[1]);
+    const delEv = await page.evaluate((seq) => {
+      const ev = BlobFS.events.filter(e => e.type === 'delegation' && e.seq === seq)[0];
+      return ev ? { kind: ev.kind, threshold: ev.threshold, by: ev.confirmedBy, undo: BlobFS.undoDepth(),
+                    revocations: BlobFS.events.filter(e => e.type === 'revocation').length } : null;
+    }, delSeq);
+    check('delegate records a person\'s delegation of one kind above a threshold and does not push undo',
+      /Delegated merges of kind "image"/.test(delReply) && delEv && delEv.kind === 'image' && delEv.threshold === 0.8 &&
+      delEv.by === 'human-command' && delEv.undo === undoAtDelegate && delEv.revocations === 0, { delReply, delEv });
+    const phys = await page.evaluate((seq) => {
+      const a = BlobFS.byName('greenpic.png'), b = BlobFS.byName('limepic.png');
+      try { BlobFS.merge(a, b, 'physics', seq, 0.99); return { ok: true }; }
+      catch (e) {
+        return { ok: false, message: e.message, parent: BlobFS.blobs[a].parent,
+                 merges: BlobFS.events.filter(x => x.type === 'merge').length };
+      }
+    }, delSeq);
+    check('a delegation does not let physics commit', phys.ok === false && /physics may propose, never commit/.test(phys.message) &&
+      phys.parent === null && phys.merges === 0, phys);
+    const snap = () => page.evaluate(() => ({
+      merges: BlobFS.events.filter(e => e.type === 'merge').length,
+      kick: BlobFS.blobs[BlobFS.byName('kickdrum.wav')].parent,
+      snare: BlobFS.blobs[BlobFS.byName('snaredrum.wav')].parent,
+      red: BlobFS.blobs[BlobFS.byName('redpic.png')].parent,
+      blue: BlobFS.blobs[BlobFS.byName('bluepic.png')].parent,
+      green: BlobFS.blobs[BlobFS.byName('greenpic.png')].parent,
+      lime: BlobFS.blobs[BlobFS.byName('limepic.png')].parent
+    }));
+    const beforeRejects = await snap();
+    const kindReply = await cmd(page, 'ai merge kickdrum.wav and snaredrum.wav under ' + delSeq + ' at 0.99');
+    const afterKind = await snap();
+    check('AI merge of the wrong kind is rejected and commits nothing',
+      /kind "audio" \+ "audio" is outside delegation #\d+ \(kind "image"\)/.test(kindReply) &&
+      afterKind.merges === beforeRejects.merges && afterKind.kick === null && afterKind.snare === null, { kindReply, afterKind });
+    const eqReply = await cmd(page, 'ai merge redpic.png and bluepic.png under ' + delSeq + ' at 0.8');
+    const afterEq = await snap();
+    check('AI merge at the threshold is rejected because confidence must be above it',
+      /confidence 0\.8 is not above threshold 0\.8/.test(eqReply) && afterEq.red === null && afterEq.blue === null &&
+      afterEq.merges === beforeRejects.merges, { eqReply, afterEq });
+    const lowReply = await cmd(page, 'ai merge redpic.png and bluepic.png under ' + delSeq + ' at 0.5');
+    const afterLow = await snap();
+    check('AI merge below the confidence threshold is rejected and commits nothing',
+      /confidence 0\.5 is not above threshold 0\.8/.test(lowReply) && afterLow.red === null && afterLow.blue === null &&
+      afterLow.merges === beforeRejects.merges, { lowReply, afterLow });
+    const missReply = await cmd(page, 'ai merge redpic.png and bluepic.png at 0.95');
+    const afterMiss = await snap();
+    check('AI merge with no delegation reference is rejected and commits nothing',
+      /AI commit has no delegation reference/.test(missReply) && afterMiss.red === null && afterMiss.blue === null &&
+      afterMiss.merges === beforeRejects.merges, { missReply, afterMiss });
+    const okReply = await cmd(page, 'ai merge redpic.png and bluepic.png under ' + delSeq + ' at 0.95');
+    const okEv = await page.evaluate((seq) => {
+      const ev = BlobFS.events.filter(e => e.type === 'merge' && e.confirmedBy === 'ai').pop();
+      const red = BlobFS.byName('redpic.png'), blue = BlobFS.byName('bluepic.png');
+      return { delegation: ev && ev.delegation, confidence: ev && ev.confidence, by: ev && ev.confirmedBy,
+               kinds: ev && ev.kinds, sameParent: !!(red && blue && BlobFS.blobs[red].parent && BlobFS.blobs[red].parent === BlobFS.blobs[blue].parent) };
+    }, delSeq);
+    check('a delegated AI merge commits and records the delegation reference and confidence',
+      /^AI merged "redpic.png" and "bluepic.png"/.test(okReply) && okEv.delegation === delSeq && okEv.confidence === 0.95 &&
+      okEv.by === 'ai' && okEv.kinds && okEv.kinds[0] === 'image' && okEv.kinds[1] === 'image' && okEv.sameParent, { okReply, okEv });
+    const undoReply = await cmd(page, 'undo');
+    const undone = await page.evaluate(() => ({
+      red: BlobFS.blobs[BlobFS.byName('redpic.png')].parent,
+      blue: BlobFS.blobs[BlobFS.byName('bluepic.png')].parent,
+      merges: BlobFS.events.filter(e => e.type === 'merge' && e.confirmedBy === 'ai').length,
+      delegations: BlobFS.events.filter(e => e.type === 'delegation').length,
+      undos: BlobFS.events.filter(e => e.type === 'undo').length
+    }));
+    check('undo of a delegated merge restores both files and keeps the merge and the delegation',
+      /unmerged "redpic.png" and "bluepic.png"/.test(undoReply) && undone.red === null && undone.blue === null &&
+      undone.merges === 1 && undone.delegations === 1 && undone.undos >= 1, { undoReply, undone });
+    const undoBeforeRevoke = await page.evaluate(() => BlobFS.undoDepth());
+    const revReply = await cmd(page, 'revoke ' + delSeq);
+    const revEv = await page.evaluate((seq) => {
+      const ev = BlobFS.events.filter(e => e.type === 'revocation' && e.delegation === seq)[0];
+      return ev ? { delegation: ev.delegation, kind: ev.kind, by: ev.confirmedBy, undo: BlobFS.undoDepth() } : null;
+    }, delSeq);
+    check('revoke records a revocation and does not push undo',
+      new RegExp('Revoked delegation #' + delSeq + ' \\(kind "image"\\)').test(revReply) && revEv &&
+      revEv.delegation === delSeq && revEv.kind === 'image' && revEv.by === 'human-command' && revEv.undo === undoBeforeRevoke,
+      { revReply, revEv });
+    const again = await cmd(page, 'ai merge greenpic.png and limepic.png under ' + delSeq + ' at 0.95');
+    const againState = await snap();
+    check('AI merge after revocation is rejected and commits nothing',
+      new RegExp('delegation #' + delSeq + ' was revoked').test(again) && againState.green === null && againState.lime === null &&
+      againState.merges === 1, { again, againState });
+    const humanReply = await cmd(page, 'merge greenpic.png and limepic.png');
+    const humanEv = await page.evaluate(() => {
+      const ev = BlobFS.events.filter(e => e.type === 'merge').pop();
+      const g = BlobFS.byName('greenpic.png');
+      return { by: ev && ev.confirmedBy, hasDelegation: ev ? Object.prototype.hasOwnProperty.call(ev, 'delegation') : null,
+               parent: !!(g && BlobFS.blobs[g].parent) };
+    });
+    check('a person can still merge that kind with no delegation after revocation',
+      /^Merged "greenpic.png" and "limepic.png"/.test(humanReply) && humanEv.by === 'human-command' &&
+      humanEv.hasDelegation === false && humanEv.parent, { humanReply, humanEv });
+    await page.close();
+
+    const delDir = path.join(tmp, 'deleg'); fs.mkdirSync(delDir);
+    fs.writeFileSync(path.join(delDir, 'build.py'), [
+      'import json, os, sys, zipfile',
+      'sys.path.insert(0, sys.argv[1])',
+      'import orb',
+      'base = sys.argv[2]',
+      'd = orb.Disk()',
+      'a = d.add_file("a.png", b"png-a")',
+      'b = d.add_file("b.png", b"png-b")',
+      'deleg = d.delegate("image", 0.8)',
+      'd.merge(a, b, confirmed_by="ai", delegation=deleg["seq"], confidence=0.9)',
+      'good = os.path.join(base, "delegated.orb")',
+      'orb.save(d, good)',
+      'bad = os.path.join(base, "nodeleg.orb")',
+      'with zipfile.ZipFile(good) as z, zipfile.ZipFile(bad, "w") as w:',
+      '    for name in z.namelist():',
+      '        data = z.read(name)',
+      '        if name == "records.jsonl":',
+      '            lines = []',
+      '            for line in data.decode("utf-8").splitlines():',
+      '                if not line.strip():',
+      '                    continue',
+      '                rec = json.loads(line)',
+      '                if rec.get("t") == "event" and rec.get("type") == "merge" and rec.get("confirmedBy") == "ai":',
+      '                    rec.pop("delegation", None)',
+      '                lines.append(json.dumps(rec, ensure_ascii=False, separators=(",", ":")))',
+      '            data = ("\\n".join(lines) + "\\n").encode("utf-8")',
+      '        w.writestr(name, data)',
+      'print(json.dumps({"good": good, "bad": bad, "seq": deleg["seq"]}))'
+    ].join('\n'));
+    const built = JSON.parse(execFileSync('python3', [path.join(delDir, 'build.py'), ROOT, delDir], { encoding: 'utf8' }));
+    page = await fresh();
+    const goodReply = await open(page, built.good);
+    const goodSeen = await page.evaluate((seq) => {
+      const del = BlobFS.events.filter(e => e.type === 'delegation');
+      const merges = BlobFS.events.filter(e => e.type === 'merge' && e.confirmedBy === 'ai');
+      const id = BlobFS.byName('a.png');
+      return { del: del.length, kind: del[0] && del[0].kind, threshold: del[0] && del[0].threshold,
+               merges: merges.length, ref: merges[0] && merges[0].delegation, confidence: merges[0] && merges[0].confidence,
+               parent: !!(id && BlobFS.blobs[id].parent) };
+    }, built.seq);
+    check('a python-written delegated merge opens and keeps the delegation reference',
+      /all SHA-256 hashes verified/.test(goodReply) && goodSeen.del === 1 && goodSeen.kind === 'image' && goodSeen.threshold === 0.8 &&
+      goodSeen.merges === 1 && goodSeen.ref === built.seq && goodSeen.confidence === 0.9 && goodSeen.parent, { goodReply, goodSeen });
+    const badReply = await open(page, built.bad);
+    check('an AI merge with no delegation reference is refused on open',
+      /^Could not open nodeleg\.orb: AI commit has no delegation reference/.test(badReply), badReply);
+    await page.close();
+
     // ---- hygiene ----
     check('zero console messages', consoleMsgs.length === 0, consoleMsgs.slice(0, 5));
     check('zero page errors', pageErrors.length === 0, pageErrors.slice(0, 5));

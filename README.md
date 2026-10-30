@@ -60,3 +60,7 @@ bash bench/run_cold.sh
 ```
 
 Recorded numbers are in [bench/results-2026-10-11.txt](bench/results-2026-10-11.txt) and [bench/results-cold-2026-10-11.txt](bench/results-cold-2026-10-11.txt), and in Section 5 of the paper. Those benchmarks were not re-run for the test-suite change.
+
+## License
+
+BlobFS is licensed under the [Apache License 2.0](LICENSE).
